@@ -1,0 +1,2 @@
+cd "F:\projects\internship project\MetricFlow-1\backend"
+python -m uvicorn app.main:app --host 127.0.0.1 --port 4000 --reload

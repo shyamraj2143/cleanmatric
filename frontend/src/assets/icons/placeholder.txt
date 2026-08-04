@@ -1,0 +1,1 @@
+Placeholder directory for svg and image icons (e.g. upload icon, file icons).

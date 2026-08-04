@@ -1,0 +1,11 @@
+import React from 'react'
+import { Link } from 'react-router-dom'
+import { formatDate, formatNumber } from '../../utils/analysis'
+import ExportButtons from './ExportButtons'
+import { EmptyState } from './States'
+
+export default function RecentAnalysisTable({ analyses = [], onDelete, deletingId, title = 'Recent analyses' }) {
+  return <article className="panel recent-analysis-panel"><div className="panel-heading"><div><h2>{title}</h2><p>Latest analyses for your authenticated account</p></div><Link className="view-all-link" to="/dashboard/history">View all →</Link></div>
+    {!analyses.length ? <EmptyState title="No analyses yet" message="Upload your first CSV, TXT, or LOG file to begin." action={<Link className="primary-action-link" to="/dashboard/upload">Upload a file</Link>} /> : <div className="table-wrap history-table-wrap"><table><thead><tr><th scope="col">File</th><th scope="col">Type</th><th scope="col">Status</th><th scope="col">Total</th><th scope="col">Success</th><th scope="col">Failed</th><th scope="col">Warning</th><th scope="col">Unknown</th><th scope="col">Date</th><th scope="col">Actions</th></tr></thead><tbody>{analyses.map((analysis) => <tr key={analysis.analysis_id}><td><strong className="filename-cell">{analysis.filename}</strong></td><td><span className="file-type-badge">{String(analysis.file_type || 'unknown').toUpperCase()}</span></td><td><span className={`status-badge ${analysis.processing_status}`}>{analysis.processing_status}</span></td><td>{formatNumber(analysis.metrics?.total_records)}</td><td>{formatNumber(analysis.metrics?.success_count)}</td><td>{formatNumber(analysis.metrics?.failed_count)}</td><td>{formatNumber(analysis.metrics?.warning_count)}</td><td>{formatNumber(analysis.metrics?.unknown_count)}</td><td>{formatDate(analysis.created_at)}</td><td><div className="table-actions"><Link to={`/dashboard/analysis/${analysis.analysis_id}`}>View</Link><ExportButtons analysisId={analysis.analysis_id} compact />{onDelete && <button className="danger-text-button" type="button" disabled={deletingId === analysis.analysis_id} onClick={() => onDelete(analysis)}>{deletingId === analysis.analysis_id ? 'Deleting…' : 'Delete'}</button>}</div></td></tr>)}</tbody></table></div>}
+  </article>
+}

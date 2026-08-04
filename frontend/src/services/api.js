@@ -1,0 +1,144 @@
+const configuredBaseUrl = import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000'
+export const API_BASE_URL = configuredBaseUrl.replace(/\/$/, '')
+
+export class ApiError extends Error {
+  constructor(message, status = 0, detail = null) {
+    super(message)
+    this.name = 'ApiError'
+    this.status = status
+    this.detail = detail
+  }
+}
+
+export const getApiErrorMessage = (detail, fallback = 'Unable to complete your request.') => {
+  if (typeof detail === 'string' && detail.trim()) return detail
+  if (Array.isArray(detail)) {
+    const messages = detail.map((error) => {
+      const field = Array.isArray(error?.loc) ? error.loc.filter((part) => part !== 'body').join(' > ') : ''
+      const message = error?.msg || error?.message
+      return message ? `${field ? `${field}: ` : ''}${message}` : ''
+    }).filter(Boolean)
+    return messages.join(' ') || fallback
+  }
+  if (detail && typeof detail === 'object') return detail.message || detail.error || fallback
+  return fallback
+}
+
+const parseResponse = async (response, responseType) => {
+  if (responseType === 'blob') return response.blob()
+  if (response.status === 204) return null
+  const type = response.headers.get('content-type') || ''
+  if (type.includes('application/json')) return response.json()
+  const text = await response.text()
+  return text || null
+}
+
+export async function apiRequest(path, options = {}) {
+  const { auth = true, responseType, headers: suppliedHeaders, ...fetchOptions } = options
+  const headers = new Headers(suppliedHeaders || {})
+  if (auth) {
+    const token = localStorage.getItem('metricflow_token')
+    if (token) headers.set('Authorization', `Bearer ${token}`)
+  }
+  if (fetchOptions.body && !(fetchOptions.body instanceof FormData) && !headers.has('Content-Type')) {
+    headers.set('Content-Type', 'application/json')
+  }
+
+  let response
+  try {
+    response = await fetch(`${API_BASE_URL}${path}`, { ...fetchOptions, headers })
+  } catch (error) {
+    if (error?.name === 'AbortError') throw error
+    throw new ApiError('Server unavailable. Check your connection and try again.', 0, error)
+  }
+
+  let payload
+  try {
+    payload = await parseResponse(response, responseType)
+  } catch {
+    payload = null
+  }
+
+  if (!response.ok) {
+    if (response.status === 401 && auth) window.dispatchEvent(new Event('metricflow:unauthorized'))
+    const detail = payload?.detail ?? payload
+    throw new ApiError(getApiErrorMessage(detail, `Request failed (${response.status}).`), response.status, detail)
+  }
+  return { data: payload, response }
+}
+
+export const authApi = {
+  login: (payload) => apiRequest('/api/auth/login', { method: 'POST', auth: false, body: JSON.stringify(payload) }).then(({ data }) => data),
+  register: (payload) => apiRequest('/api/auth/register', { method: 'POST', auth: false, body: JSON.stringify(payload) }).then(({ data }) => data),
+  google: (credential) => apiRequest('/api/auth/google', { method: 'POST', auth: false, body: JSON.stringify({ credential }) }).then(({ data }) => data),
+}
+
+export const analysisApi = {
+  analyzeFile(file, { signal } = {}) {
+    const body = new FormData()
+    body.append('file', file)
+    return apiRequest('/api/v1/files/analyze', { method: 'POST', body, signal }).then(({ data }) => data)
+  },
+  getAnalyses(page = 1, pageSize = 10, { signal } = {}) {
+    const params = new URLSearchParams({ page: String(page), page_size: String(pageSize) })
+    return apiRequest(`/api/v1/analyses?${params}`, { signal }).then(({ data }) => data)
+  },
+  getAnalysisById(analysisId, { signal } = {}) {
+    return apiRequest(`/api/v1/analyses/${encodeURIComponent(analysisId)}`, { signal }).then(({ data }) => data)
+  },
+  deleteAnalysis(analysisId) {
+    return apiRequest(`/api/v1/analyses/${encodeURIComponent(analysisId)}`, { method: 'DELETE' }).then(({ data }) => data)
+  },
+  async downloadCsv(analysisId) {
+    return downloadExport(analysisId, 'csv')
+  },
+  async downloadXlsx(analysisId) {
+    return downloadExport(analysisId, 'xlsx')
+  },
+}
+
+export const dashboardApi = {
+  getSummary: ({ signal } = {}) => apiRequest('/api/v1/dashboard/summary', { signal }).then(({ data }) => data),
+  getStatusDistribution: ({ signal } = {}) => apiRequest('/api/v1/dashboard/status-distribution', { signal }).then(({ data }) => data),
+  getFileTypeDistribution: ({ signal } = {}) => apiRequest('/api/v1/dashboard/file-type-distribution', { signal }).then(({ data }) => data),
+  getTrends: (range = '30d', { signal } = {}) => apiRequest(`/api/v1/dashboard/trends?${new URLSearchParams({ range })}`, { signal }).then(({ data }) => data),
+  getRecentAnalyses: ({ signal } = {}) => apiRequest('/api/v1/dashboard/recent-analyses', { signal }).then(({ data }) => data),
+  getLatestAnalysis: ({ signal } = {}) => apiRequest('/api/v1/dashboard/latest-analysis', { signal }).then(({ data }) => data),
+}
+
+export const settingsApi = {
+  getProfile: ({ signal } = {}) => apiRequest('/api/v1/profile', { signal }).then(({ data }) => data),
+  updateProfile: (payload) => apiRequest('/api/v1/profile', { method: 'PATCH', body: JSON.stringify(payload) }).then(({ data }) => data),
+  getSettings: ({ signal } = {}) => apiRequest('/api/v1/settings', { signal }).then(({ data }) => data),
+  updateSettings: (payload) => apiRequest('/api/v1/settings', { method: 'PATCH', body: JSON.stringify(payload) }).then(({ data }) => data),
+  changePassword: (payload) => apiRequest('/api/v1/profile/change-password', { method: 'POST', body: JSON.stringify(payload) }).then(({ data }) => data),
+}
+
+const getDownloadFilename = (header, fallback) => {
+  if (!header) return fallback
+  const utfMatch = header.match(/filename\*=UTF-8''([^;]+)/i)
+  if (utfMatch) {
+    try { return decodeURIComponent(utfMatch[1]) } catch { return utfMatch[1] }
+  }
+  const match = header.match(/filename="?([^";]+)"?/i)
+  return match?.[1] || fallback
+}
+
+async function downloadExport(analysisId, format) {
+  const { data, response } = await apiRequest(`/api/v1/analyses/${encodeURIComponent(analysisId)}/export/${format}`, { responseType: 'blob' })
+  return {
+    blob: data,
+    filename: getDownloadFilename(response.headers.get('content-disposition'), `metricflow-analysis-${analysisId}.${format}`),
+  }
+}
+
+export function saveBlob({ blob, filename }) {
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = filename
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  URL.revokeObjectURL(url)
+}

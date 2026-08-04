@@ -1,0 +1,34 @@
+# Environment
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+*.db
+.secret_key
+
+# Node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Builds and caches
+dist/
+build/
+.vite/
+.cache/
+coverage/
+.playwright-cli/
+
+# OS/editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
