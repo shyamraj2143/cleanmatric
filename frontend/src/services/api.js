@@ -3,11 +3,13 @@ import { storage } from '../utils/storage'
 
 const currentHostname = globalThis.location?.hostname || ''
 const isLocalDevelopment = currentHostname === 'localhost' || currentHostname === '127.0.0.1' || currentHostname === ''
-const defaultBaseUrl = isLocalDevelopment
-  ? 'http://127.0.0.1:8000'
-  : 'https://amusing-renewal-production.up.railway.app'
-const configuredBaseUrl = getConfigValue('VITE_API_BASE_URL', 'VITE_API_URL') || defaultBaseUrl
-export const API_BASE_URL = configuredBaseUrl.replace(/\/$/, '')
+const configuredBaseUrl = getConfigValue('VITE_API_BASE_URL', 'VITE_API_URL')
+const useSameOriginProxy = !isLocalDevelopment && getConfigValue('VITE_USE_API_PROXY') !== 'false'
+const defaultBaseUrl = isLocalDevelopment ? 'http://127.0.0.1:8000' : ''
+const selectedBaseUrl = useSameOriginProxy ? '' : (configuredBaseUrl || defaultBaseUrl)
+export const API_BASE_URL = selectedBaseUrl.replace(/\/$/, '')
+
+const buildApiUrl = (path) => API_BASE_URL ? `${API_BASE_URL}${path}` : path
 
 export class ApiError extends Error {
   constructor(message, status = 0, detail = null) {
@@ -64,10 +66,11 @@ export async function apiRequest(path, options = {}) {
 
   let response
   try {
-    response = await fetch(`${API_BASE_URL}${path}`, { ...fetchOptions, headers })
+    response = await fetch(buildApiUrl(path), { ...fetchOptions, headers })
   } catch (error) {
     if (error?.name === 'AbortError') throw error
-    throw new ApiError(`Server unavailable at ${API_BASE_URL}. Check the Railway public domain and redeploy the backend.`, 0, error)
+    const destination = API_BASE_URL || 'the same-origin backend proxy'
+    throw new ApiError(`Unable to reach ${destination}. Check that the latest frontend and backend deployments are active.`, 0, error)
   }
 
   let payload
