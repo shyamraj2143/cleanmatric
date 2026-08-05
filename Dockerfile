@@ -23,7 +23,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1 \
     PATH="/opt/venv/bin:$PATH" \
     NODE_ENV=production \
-    PORT=5000 \
+    PORT=8080 \
     DATABASE_URL="sqlite:////data/metricflow.db"
 
 RUN apt-get update \
@@ -51,12 +51,12 @@ WORKDIR /app
 COPY --from=builder /opt/venv /opt/venv
 COPY --chown=cleanmetric:cleanmetric backend/app ./app
 
-EXPOSE 5000
+EXPOSE 8080
 
 STOPSIGNAL SIGTERM
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
-    CMD python -c "import os, urllib.request; urllib.request.urlopen('http://127.0.0.1:' + os.getenv('PORT', '5000') + '/health', timeout=3).read()" || exit 1
+    CMD python -c "import os, urllib.request; urllib.request.urlopen('http://127.0.0.1:' + os.getenv('PORT', '8080') + '/health', timeout=3).read()" || exit 1
 
 ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
-CMD ["sh", "-c", "exec uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-5000} --workers 1 --proxy-headers --forwarded-allow-ips='*' --timeout-keep-alive 75 --no-server-header"]
+CMD ["sh", "-c", "exec uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8080} --workers 1 --proxy-headers --forwarded-allow-ips='*' --timeout-keep-alive 75 --no-server-header"]
