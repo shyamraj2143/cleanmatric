@@ -56,9 +56,28 @@ def create_app(settings: Settings | None = None, store: UserStore | None = None,
     app.include_router(build_analysis_router(analysis_repository, current_user))
     app.include_router(build_settings_router(store, settings_repository, current_user))
 
+    @app.get('/')
+    async def service_root():
+        return {
+            'service': 'cleanmetric-api',
+            'status': 'online',
+            'version': '2.0.0',
+            'docs': '/docs',
+            'health': '/health',
+        }
+
     @app.get('/health')
     async def health():
         return {'status': 'healthy', 'service': 'cleanmetric-api', 'version': '2.0.0'}
+
+    @app.get('/api/public/config')
+    async def public_config():
+        return {
+            'service': 'cleanmetric-api',
+            'version': '2.0.0',
+            'google_sign_in_enabled': bool(settings.google_web_client_id),
+            'google_web_client_id': settings.google_web_client_id or '',
+        }
 
     @app.post('/api/data/process')
     async def process_data(file: UploadFile = File(...)):
