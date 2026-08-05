@@ -1,7 +1,7 @@
 const productionFallbacks = {
   VITE_API_BASE_URL: 'https://amusing-renewal-production.up.railway.app',
   VITE_USE_API_PROXY: 'false',
-  VITE_GOOGLE_WEB_CLIENT_ID: '776507506876-vjrrc9m5eer82k6digta7ie2phd4l1f8.apps.googleusercontent.com',
+  VITE_GOOGLE_WEB_CLIENT_ID: '',
 }
 
 const readRuntimeConfig = () => globalThis.window?.__METRICFLOW_CONFIG__ || {}
