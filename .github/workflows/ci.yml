@@ -31,6 +31,36 @@ jobs:
           DATABASE_URL: sqlite:///./ci.db
           ALLOWED_ORIGIN: http://localhost:3000
 
+  backend-container:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build production backend image
+        run: docker build --tag cleanmetric-backend:ci ./backend
+      - name: Smoke test production container
+        run: |
+          docker run --detach --rm \
+            --name cleanmetric-backend-ci \
+            --publish 5000:5000 \
+            --env PORT=5000 \
+            --env JWT_SECRET=ci-container-secret-that-is-long-enough \
+            --env DATABASE_URL=sqlite:////data/ci.db \
+            --env ALLOWED_ORIGIN=http://localhost:3000 \
+            cleanmetric-backend:ci
+
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent --show-error http://127.0.0.1:5000/health; then
+              exit 0
+            fi
+            sleep 2
+          done
+
+          docker logs cleanmetric-backend-ci
+          exit 1
+      - name: Stop smoke-test container
+        if: always()
+        run: docker stop cleanmetric-backend-ci || true
+
   frontend:
     runs-on: ubuntu-latest
     defaults:
