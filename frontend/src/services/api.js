@@ -1,6 +1,11 @@
 import { getConfigValue } from '../config'
 
-const configuredBaseUrl = getConfigValue('VITE_API_BASE_URL', 'VITE_API_URL') || 'http://127.0.0.1:8000'
+const currentHostname = globalThis.location?.hostname || ''
+const isLocalDevelopment = currentHostname === 'localhost' || currentHostname === '127.0.0.1' || currentHostname === ''
+const defaultBaseUrl = isLocalDevelopment
+  ? 'http://127.0.0.1:8000'
+  : 'https://amusing-renewal-production.up.railway.app'
+const configuredBaseUrl = getConfigValue('VITE_API_BASE_URL', 'VITE_API_URL') || defaultBaseUrl
 export const API_BASE_URL = configuredBaseUrl.replace(/\/$/, '')
 
 export class ApiError extends Error {
