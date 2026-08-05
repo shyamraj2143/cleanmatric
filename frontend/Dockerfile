@@ -19,7 +19,8 @@ FROM node:22-alpine AS runtime
 
 ENV NODE_ENV=production \
     PORT=3000 \
-    VITE_API_BASE_URL=https://amusing-renewal-production.up.railway.app \
+    VITE_USE_API_PROXY=true \
+    API_PROXY_TARGET=http://amusing-renewal.railway.internal:8080,http://amusing-renewal:8080,https://amusing-renewal-production.up.railway.app \
     VITE_GOOGLE_WEB_CLIENT_ID=776507506876-vjrrc9m5eer82k6digta7ie2phd4l1f8.apps.googleusercontent.com
 
 RUN addgroup -S metricflow && adduser -S -G metricflow metricflow
