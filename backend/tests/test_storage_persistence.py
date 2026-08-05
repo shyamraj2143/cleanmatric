@@ -62,3 +62,22 @@ def test_restores_latest_backup_when_primary_database_is_missing(tmp_path, monke
     selected_path = Path(UserStore._parse_database_url(settings.database_url))
     assert selected_path == (volume / 'metricflow.db').resolve()
     assert _count_users(settings.database_url) == 1
+
+
+def test_migrates_ephemeral_legacy_database_into_volume(tmp_path, monkeypatch):
+    working_directory = tmp_path / 'app'
+    volume = tmp_path / 'volume'
+    legacy_database = working_directory / 'metricflow.db'
+    _create_database(legacy_database, ['legacy@example.com'])
+
+    monkeypatch.chdir(working_directory)
+    monkeypatch.setenv('RAILWAY_VOLUME_MOUNT_PATH', str(volume))
+    monkeypatch.setenv('DATABASE_URL', 'sqlite:///./metricflow.db')
+    monkeypatch.setenv('JWT_SECRET', 'storage-test-secret-that-is-long-enough')
+
+    settings = Settings.from_environment()
+
+    selected_path = Path(UserStore._parse_database_url(settings.database_url))
+    assert selected_path == (volume / 'metricflow.db').resolve()
+    assert _count_users(settings.database_url) == 1
+    assert (volume / 'backups' / 'metricflow-latest.db').exists()
