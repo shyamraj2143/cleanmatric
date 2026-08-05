@@ -3,6 +3,7 @@ import { Navigate, Outlet, Route, Routes, useLocation, useNavigate } from 'react
 import { useAuth } from './auth/AuthContext'
 import DashboardLayout from './components/dashboard/DashboardLayout'
 import { getConfigValue } from './config'
+import LandingPage from './pages/LandingPage'
 import { authApi } from './services/api'
 
 const AnalysisDetailPage = lazy(() => import('./pages/AnalysisDetailPage'))
@@ -82,8 +83,6 @@ function AuthPage({ defaultMode = 'login' }) {
         googleInitializedRef.current = true
       }
 
-      // This host never contains React-rendered children. Google may safely own
-      // everything inside it without breaking React's DOM reconciliation.
       host.replaceChildren()
       const availableWidth = host.parentElement?.clientWidth || 438
       window.google.accounts.id.renderButton(host, {
@@ -171,5 +170,5 @@ function AuthPage({ defaultMode = 'login' }) {
 }
 
 export default function App() {
-  return <Suspense fallback={<div className="route-loading" role="status">Loading workspace…</div>}><Routes><Route path="/" element={<AuthPage />} /><Route path="/login" element={<AuthPage />} /><Route path="/register" element={<AuthPage defaultMode="signup" />} /><Route element={<ProtectedRoute />}><Route path="/dashboard" element={<DashboardLayout />}><Route index element={<DashboardPage />} /><Route path="upload" element={<UploadPage />} /><Route path="history" element={<HistoryPage />} /><Route path="settings" element={<SettingsPage />} /><Route path="analysis/:analysisId" element={<AnalysisDetailPage />} /></Route></Route><Route path="*" element={<Navigate to="/" replace />} /></Routes></Suspense>
+  return <Suspense fallback={<div className="route-loading" role="status">Loading workspace…</div>}><Routes><Route path="/" element={<LandingPage />} /><Route path="/login" element={<AuthPage />} /><Route path="/register" element={<AuthPage defaultMode="signup" />} /><Route element={<ProtectedRoute />}><Route path="/dashboard" element={<DashboardLayout />}><Route index element={<DashboardPage />} /><Route path="upload" element={<UploadPage />} /><Route path="history" element={<HistoryPage />} /><Route path="settings" element={<SettingsPage />} /><Route path="analysis/:analysisId" element={<AnalysisDetailPage />} /></Route></Route><Route path="*" element={<Navigate to="/" replace />} /></Routes></Suspense>
 }
