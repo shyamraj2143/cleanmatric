@@ -1,0 +1,14 @@
+.git
+.github
+frontend
+backend/tests
+backend/requirements-dev.txt
+backend/.pytest_cache
+backend/**/__pycache__
+backend/**/*.pyc
+**/.env
+**/.env.*
+**/*.db
+**/*.sqlite
+**/*.sqlite3
+README.md
