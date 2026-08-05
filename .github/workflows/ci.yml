@@ -35,8 +35,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Build production backend image
-        run: docker build --tag cleanmetric-backend:ci ./backend
+      - name: Build Railway production image from repository root
+        run: docker build --tag cleanmetric-backend:ci .
       - name: Smoke test production container
         run: |
           docker run --detach --rm \
