@@ -20,17 +20,27 @@ export const getApiErrorMessage = (detail, fallback = 'Unable to complete your r
     }).filter(Boolean)
     return messages.join(' ') || fallback
   }
-  if (detail && typeof detail === 'object') return detail.message || detail.error || fallback
+  if (detail && typeof detail === 'object') return detail.detail || detail.message || detail.error || fallback
   return fallback
 }
 
-const parseResponse = async (response, responseType) => {
+const parsedResponseCache = new WeakMap()
+
+const parseResponse = (response, responseType) => {
   if (responseType === 'blob') return response.blob()
-  if (response.status === 204) return null
-  const type = response.headers.get('content-type') || ''
-  if (type.includes('application/json')) return response.json()
-  const text = await response.text()
-  return text || null
+  if (response.status === 204) return Promise.resolve(null)
+  if (parsedResponseCache.has(response)) return parsedResponseCache.get(response)
+
+  const payloadPromise = (async () => {
+    const type = response.headers.get('content-type') || ''
+    if (type.includes('application/json')) return response.json()
+    const text = await response.text()
+    if (!text) return null
+    try { return JSON.parse(text) } catch { return text }
+  })()
+
+  parsedResponseCache.set(response, payloadPromise)
+  return payloadPromise
 }
 
 export async function apiRequest(path, options = {}) {
