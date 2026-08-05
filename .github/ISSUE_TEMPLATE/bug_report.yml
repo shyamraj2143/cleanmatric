@@ -1,0 +1,68 @@
+name: Bug report
+description: Report a reproducible problem in CleanMetric
+title: "[Bug]: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a problem. Do not include passwords, tokens, private datasets, or production secrets.
+  - type: textarea
+    id: summary
+    attributes:
+      label: Problem summary
+      description: What happened, and what did you expect instead?
+      placeholder: Describe the issue clearly.
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Affected area
+      options:
+        - Public website
+        - Authentication
+        - Dashboard
+        - File upload
+        - Data cleaning
+        - Analysis history
+        - Export or PDF report
+        - Backend API
+        - Deployment
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Use non-sensitive sample data only.
+      placeholder: |
+        1. Open...
+        2. Upload...
+        3. Click...
+        4. Observe...
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      placeholder: Browser, operating system, deployment, file type, and relevant versions.
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Logs or screenshots
+      description: Remove credentials and personal data before attaching anything.
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Safety checks
+      options:
+        - label: I removed secrets, tokens, passwords, and private data.
+          required: true
+        - label: I searched existing issues before opening this report.
+          required: true
