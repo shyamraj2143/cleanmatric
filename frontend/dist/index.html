@@ -4,26 +4,45 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#111a3d" />
-    <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <title>MetricFlow | Sign in</title>
     <script>
       window.__METRICFLOW_CONFIG__ = window.__METRICFLOW_CONFIG__ || {};
       window.__METRICFLOW_BOOTED__ = false;
+      window.__METRICFLOW_ASSET_ERROR__ = false;
+      window.addEventListener('error', function (event) {
+        var target = event.target;
+        if (target && (target.tagName === 'SCRIPT' || target.tagName === 'LINK')) {
+          window.__METRICFLOW_ASSET_ERROR__ = true;
+        }
+      }, true);
       window.setTimeout(function () {
         if (window.__METRICFLOW_BOOTED__) return;
+        var recoveryKey = 'metricflow_bundle_recovery';
+        if (sessionStorage.getItem(recoveryKey) !== 'attempted') {
+          sessionStorage.setItem(recoveryKey, 'attempted');
+          var recoveryUrl = new URL(window.location.href);
+          recoveryUrl.searchParams.set('_metricflow_refresh', String(Date.now()));
+          window.location.replace(recoveryUrl.toString());
+          return;
+        }
         var root = document.getElementById('root');
         if (!root) return;
-        root.innerHTML = '<main style="min-height:100vh;display:grid;place-items:center;padding:24px;background:#f6f7fb;font-family:Inter,system-ui,sans-serif;color:#17213f"><section style="max-width:560px;padding:32px;border:1px solid #dfe3ef;border-radius:18px;background:#fff;box-shadow:0 18px 50px rgba(31,45,91,.12);text-align:center"><h1 style="margin:0 0 12px;font-size:26px">MetricFlow could not start</h1><p style="margin:0 0 20px;line-height:1.6;color:#5f6880">The application files may be stale or incomplete. Refresh once to load the latest deployment.</p><button onclick="location.reload()" style="border:0;border-radius:12px;padding:12px 20px;background:#5d6df6;color:#fff;font-weight:700;cursor:pointer">Reload application</button></section></main>';
+        var detail = window.__METRICFLOW_ASSET_ERROR__
+          ? 'The browser received an outdated application file. Clear this site cache once, then reload.'
+          : 'The application could not finish starting. Reload once to fetch the latest deployment.';
+        root.innerHTML = '<main style="min-height:100vh;display:grid;place-items:center;padding:24px;background:#f6f7fb;font-family:Inter,system-ui,sans-serif;color:#17213f"><section style="max-width:560px;padding:32px;border:1px solid #dfe3ef;border-radius:18px;background:#fff;box-shadow:0 18px 50px rgba(31,45,91,.12);text-align:center"><p style="margin:0 0 10px;color:#5d6df6;font-size:12px;font-weight:800;letter-spacing:.15em">APPLICATION RECOVERY</p><h1 style="margin:0 0 12px;font-size:26px">MetricFlow could not start</h1><p style="margin:0 0 20px;line-height:1.6;color:#5f6880">' + detail + '</p><button onclick="sessionStorage.removeItem(\'metricflow_bundle_recovery\');location.reload()" style="border:0;border-radius:12px;padding:12px 20px;background:#5d6df6;color:#fff;font-weight:700;cursor:pointer">Reload application</button></section></main>';
       }, 12000);
     </script>
+    <script src="/config.js"></script>
     <script>
       window.__METRICFLOW_CONFIG__ = Object.assign({
         VITE_API_BASE_URL: 'https://amusing-renewal-production.up.railway.app',
         VITE_GOOGLE_WEB_CLIENT_ID: '776507506876-vjrrc9m5eer82k6digta7ie2phd4l1f8.apps.googleusercontent.com'
       }, window.__METRICFLOW_CONFIG__ || {});
     </script>
-    <script type="module" crossorigin src="./assets/index-B1smwpda.js"></script>
-    <link rel="stylesheet" crossorigin href="./assets/index-BO7ia6U3.css">
+    <script type="module" crossorigin src="/assets/app.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/app.css">
   </head>
   <body>
     <div id="root">

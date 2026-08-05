@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
 import DataWorkspace from './DataWorkspace'
+import { storage } from '../utils/storage'
 
 const navigation = [
   ['Overview', '▦'],
@@ -18,7 +19,7 @@ const sourceData = [
 function Home({ onSignOut }) {
   const [activeNav, setActiveNav] = useState('Overview')
   const [range, setRange] = useState('Last 30 days')
-  const user = JSON.parse(localStorage.getItem('metricflow_user') || '{}')
+  const user = JSON.parse(storage.getItem('metricflow_user') || '{}')
   const firstName = user.name?.split(' ')[0] || 'there'
 
   return (

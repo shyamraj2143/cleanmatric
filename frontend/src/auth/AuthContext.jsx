@@ -1,4 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
+import { storage } from '../utils/storage'
 
 const TOKEN_KEY = 'metricflow_token'
 const USER_KEY = 'metricflow_user'
@@ -6,9 +7,9 @@ const AuthContext = createContext(null)
 
 const readUser = () => {
   try {
-    return JSON.parse(localStorage.getItem(USER_KEY) || 'null')
+    return JSON.parse(storage.getItem(USER_KEY) || 'null')
   } catch {
-    localStorage.removeItem(USER_KEY)
+    storage.removeItem(USER_KEY)
     return null
   }
 }
@@ -24,13 +25,13 @@ const isTokenExpired = (token) => {
 }
 
 export function AuthProvider({ children }) {
-  const initialToken = localStorage.getItem(TOKEN_KEY)
+  const initialToken = storage.getItem(TOKEN_KEY)
   const [token, setToken] = useState(() => (isTokenExpired(initialToken) ? null : initialToken))
   const [user, setUser] = useState(() => (isTokenExpired(initialToken) ? null : readUser()))
 
   const logout = useCallback(() => {
-    localStorage.removeItem(TOKEN_KEY)
-    localStorage.removeItem(USER_KEY)
+    storage.removeItem(TOKEN_KEY)
+    storage.removeItem(USER_KEY)
     setToken(null)
     setUser(null)
   }, [])
@@ -39,8 +40,8 @@ export function AuthProvider({ children }) {
     const nextToken = result?.token || result?.access_token
     if (!nextToken) throw new Error('The server did not return an access token.')
     const nextUser = result?.user || { email: result?.email, name: result?.name }
-    localStorage.setItem(TOKEN_KEY, nextToken)
-    localStorage.setItem(USER_KEY, JSON.stringify(nextUser || {}))
+    storage.setItem(TOKEN_KEY, nextToken)
+    storage.setItem(USER_KEY, JSON.stringify(nextUser || {}))
     setToken(nextToken)
     setUser(nextUser || {})
   }, [])
@@ -48,7 +49,7 @@ export function AuthProvider({ children }) {
   const updateUser = useCallback((patch) => {
     setUser((current) => {
       const nextUser = { ...(current || {}), ...patch }
-      localStorage.setItem(USER_KEY, JSON.stringify(nextUser))
+      storage.setItem(USER_KEY, JSON.stringify(nextUser))
       return nextUser
     })
   }, [])

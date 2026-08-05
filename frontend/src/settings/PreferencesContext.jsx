@@ -1,4 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
+import { storage } from '../utils/storage'
 
 const STORAGE_KEY = 'metricflow_preferences'
 const DEFAULT_PREFERENCES = {
@@ -12,9 +13,9 @@ const DEFAULT_PREFERENCES = {
 
 const readPreferences = () => {
   try {
-    return { ...DEFAULT_PREFERENCES, ...JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}') }
+    return { ...DEFAULT_PREFERENCES, ...JSON.parse(storage.getItem(STORAGE_KEY) || '{}') }
   } catch {
-    localStorage.removeItem(STORAGE_KEY)
+    storage.removeItem(STORAGE_KEY)
     return DEFAULT_PREFERENCES
   }
 }
@@ -37,7 +38,7 @@ export function PreferencesProvider({ children }) {
   const updatePreferences = useCallback((patch) => {
     setPreferences((current) => {
       const next = { ...current, ...patch }
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(next))
+      storage.setItem(STORAGE_KEY, JSON.stringify(next))
       return next
     })
   }, [])

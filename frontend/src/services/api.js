@@ -1,4 +1,5 @@
 import { getConfigValue } from '../config'
+import { storage } from '../utils/storage'
 
 const currentHostname = globalThis.location?.hostname || ''
 const isLocalDevelopment = currentHostname === 'localhost' || currentHostname === '127.0.0.1' || currentHostname === ''
@@ -54,7 +55,7 @@ export async function apiRequest(path, options = {}) {
   const { auth = true, responseType, headers: suppliedHeaders, ...fetchOptions } = options
   const headers = new Headers(suppliedHeaders || {})
   if (auth) {
-    const token = localStorage.getItem('metricflow_token')
+    const token = storage.getItem('metricflow_token')
     if (token) headers.set('Authorization', `Bearer ${token}`)
   }
   if (fetchOptions.body && !(fetchOptions.body instanceof FormData) && !headers.has('Content-Type')) {
