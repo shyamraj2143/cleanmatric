@@ -52,7 +52,6 @@ COPY --from=builder /opt/venv /opt/venv
 COPY --chown=cleanmetric:cleanmetric app ./app
 
 EXPOSE 5000
-VOLUME ["/data"]
 
 STOPSIGNAL SIGTERM
 
