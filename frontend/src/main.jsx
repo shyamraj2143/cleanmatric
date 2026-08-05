@@ -6,17 +6,14 @@ import { AuthProvider } from './auth/AuthContext'
 import { applyInitialTheme, PreferencesProvider } from './settings/PreferencesContext'
 import './styles/style.css'
 import './styles/responsive.css'
+import './styles/advanced.css'
 
 applyInitialTheme()
 
 createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-      <AuthProvider>
-        <PreferencesProvider>
-          <App />
-        </PreferencesProvider>
-      </AuthProvider>
+      <AuthProvider><PreferencesProvider><App /></PreferencesProvider></AuthProvider>
     </BrowserRouter>
   </React.StrictMode>,
 )

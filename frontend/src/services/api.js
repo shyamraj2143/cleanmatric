@@ -53,12 +53,7 @@ export async function apiRequest(path, options = {}) {
   }
 
   let payload
-  try {
-    payload = await parseResponse(response, responseType)
-  } catch {
-    payload = null
-  }
-
+  try { payload = await parseResponse(response, responseType) } catch { payload = null }
   if (!response.ok) {
     if (response.status === 401 && auth) window.dispatchEvent(new Event('metricflow:unauthorized'))
     const detail = payload?.detail ?? payload
@@ -74,9 +69,10 @@ export const authApi = {
 }
 
 export const analysisApi = {
-  analyzeFile(file, { signal } = {}) {
+  analyzeFile(file, { signal, cleaningConfig = {} } = {}) {
     const body = new FormData()
     body.append('file', file)
+    body.append('cleaning_config', JSON.stringify(cleaningConfig))
     return apiRequest('/api/v1/files/analyze', { method: 'POST', body, signal }).then(({ data }) => data)
   },
   getAnalyses(page = 1, pageSize = 10, { signal } = {}) {
@@ -86,15 +82,18 @@ export const analysisApi = {
   getAnalysisById(analysisId, { signal } = {}) {
     return apiRequest(`/api/v1/analyses/${encodeURIComponent(analysisId)}`, { signal }).then(({ data }) => data)
   },
+  getRecords(analysisId, { page = 1, pageSize = 50, search = '', signal } = {}) {
+    const params = new URLSearchParams({ page: String(page), page_size: String(pageSize), search })
+    return apiRequest(`/api/v1/analyses/${encodeURIComponent(analysisId)}/records?${params}`, { signal }).then(({ data }) => data)
+  },
   deleteAnalysis(analysisId) {
     return apiRequest(`/api/v1/analyses/${encodeURIComponent(analysisId)}`, { method: 'DELETE' }).then(({ data }) => data)
   },
-  async downloadCsv(analysisId) {
-    return downloadExport(analysisId, 'csv')
-  },
-  async downloadXlsx(analysisId) {
-    return downloadExport(analysisId, 'xlsx')
-  },
+  downloadCsv: (analysisId) => downloadExport(analysisId, 'csv'),
+  downloadXlsx: (analysisId) => downloadExport(analysisId, 'xlsx'),
+  downloadJson: (analysisId) => downloadExport(analysisId, 'json'),
+  downloadPdf: (analysisId) => downloadExport(analysisId, 'pdf'),
+  downloadExport,
 }
 
 export const dashboardApi = {
@@ -126,10 +125,7 @@ const getDownloadFilename = (header, fallback) => {
 
 async function downloadExport(analysisId, format) {
   const { data, response } = await apiRequest(`/api/v1/analyses/${encodeURIComponent(analysisId)}/export/${format}`, { responseType: 'blob' })
-  return {
-    blob: data,
-    filename: getDownloadFilename(response.headers.get('content-disposition'), `metricflow-analysis-${analysisId}.${format}`),
-  }
+  return { blob: data, filename: getDownloadFilename(response.headers.get('content-disposition'), `cleanmetric-analysis-${analysisId}.${format}`) }
 }
 
 export function saveBlob({ blob, filename }) {

@@ -21,13 +21,16 @@ class AnalysisRepository:
     async def list_for_user(self, user_id: str, offset: int, limit: int) -> list[dict[str, Any]]:
         return await asyncio.to_thread(self._list_for_user, user_id, offset, limit)
 
+    async def count_for_user(self, user_id: str) -> int:
+        return await asyncio.to_thread(self._count_for_user, user_id)
+
     async def find_for_user(self, analysis_id: str, user_id: str) -> dict[str, Any] | None:
         return await asyncio.to_thread(self._find_for_user, analysis_id, user_id)
 
     async def delete_for_user(self, analysis_id: str, user_id: str) -> bool:
         return await asyncio.to_thread(self._delete_for_user, analysis_id, user_id)
 
-    async def dashboard_summary(self, user_id: str) -> dict[str, int]:
+    async def dashboard_summary(self, user_id: str) -> dict[str, int | float]:
         return await asyncio.to_thread(self._dashboard_summary, user_id)
 
     async def file_type_distribution(self, user_id: str) -> list[dict[str, object]]:
@@ -59,7 +62,11 @@ class AnalysisRepository:
 
     def _create(self, user_id: str, filename: str, file_type: str, file_size: int, records: list[dict[str, str]], metrics: dict[str, Any], charts: dict[str, Any]) -> dict[str, Any]:
         analysis_id, now = str(uuid.uuid4()), datetime.now(UTC).isoformat()
-        columns = list(records[0]) if records else []
+        columns: list[str] = []
+        for record in records:
+            for column in record:
+                if column not in columns:
+                    columns.append(column)
         with self._connect() as connection:
             connection.execute('''
                 INSERT INTO analysis_jobs (id, user_id, original_filename, file_type, file_size, status, metrics_json, charts_json, columns_json, records_json, created_at, completed_at)
@@ -72,6 +79,11 @@ class AnalysisRepository:
             rows = connection.execute('SELECT * FROM analysis_jobs WHERE user_id = ? ORDER BY created_at DESC LIMIT ? OFFSET ?', (user_id, limit, offset)).fetchall()
         return [self._row_to_job(row, include_records=False) for row in rows]
 
+    def _count_for_user(self, user_id: str) -> int:
+        with self._connect() as connection:
+            row = connection.execute('SELECT COUNT(*) AS total FROM analysis_jobs WHERE user_id = ?', (user_id,)).fetchone()
+        return int(row['total'])
+
     def _find_for_user(self, analysis_id: str, user_id: str) -> dict[str, Any] | None:
         with self._connect() as connection:
             row = connection.execute('SELECT * FROM analysis_jobs WHERE id = ? AND user_id = ?', (analysis_id, user_id)).fetchone()
@@ -82,12 +94,16 @@ class AnalysisRepository:
             cursor = connection.execute('DELETE FROM analysis_jobs WHERE id = ? AND user_id = ?', (analysis_id, user_id))
         return cursor.rowcount == 1
 
-    def _dashboard_summary(self, user_id: str) -> dict[str, int]:
-        fields = ('cleaned_records', 'success_count', 'failed_count', 'warning_count', 'unknown_count', 'duplicates_removed', 'invalid_records')
+    def _dashboard_summary(self, user_id: str) -> dict[str, int | float]:
+        fields = ('cleaned_records', 'success_count', 'failed_count', 'warning_count', 'unknown_count', 'duplicates_removed', 'invalid_records', 'missing_values_count', 'outliers_detected')
         expressions = ', '.join(f"COALESCE(SUM(CAST(json_extract(metrics_json, '$.{field}') AS INTEGER)), 0) AS {field}" for field in fields)
         with self._connect() as connection:
-            row = connection.execute(f'SELECT COUNT(*) AS total_analyses, {expressions} FROM analysis_jobs WHERE user_id = ?', (user_id,)).fetchone()
-        return {key: int(row[key]) for key in ('total_analyses', *fields)}
+            row = connection.execute(f'''SELECT COUNT(*) AS total_analyses, {expressions},
+                COALESCE(AVG(CAST(json_extract(metrics_json, '$.quality_score') AS REAL)), 0) AS average_quality_score
+                FROM analysis_jobs WHERE user_id = ?''', (user_id,)).fetchone()
+        result: dict[str, int | float] = {key: int(row[key]) for key in ('total_analyses', *fields)}
+        result['average_quality_score'] = round(float(row['average_quality_score']), 2)
+        return result
 
     def _file_type_distribution(self, user_id: str) -> list[dict[str, object]]:
         with self._connect() as connection:
@@ -98,9 +114,11 @@ class AnalysisRepository:
         fields = ('cleaned_records', 'success_count', 'failed_count', 'warning_count', 'unknown_count')
         expressions = ', '.join(f"COALESCE(SUM(CAST(json_extract(metrics_json, '$.{field}') AS INTEGER)), 0) AS {field}" for field in fields)
         with self._connect() as connection:
-            rows = connection.execute(f'''SELECT substr(created_at, 1, 10) AS date, COUNT(*) AS analyses, {expressions}
-                FROM analysis_jobs WHERE user_id = ? AND created_at >= datetime('now', ?) GROUP BY substr(created_at, 1, 10) ORDER BY date''', (user_id, f'-{days} days')).fetchall()
-        return [{'date': str(row['date']), 'analyses': int(row['analyses']), 'records': int(row['cleaned_records']), 'success': int(row['success_count']), 'failed': int(row['failed_count']), 'warning': int(row['warning_count']), 'unknown': int(row['unknown_count'])} for row in rows]
+            rows = connection.execute(f'''SELECT substr(created_at, 1, 10) AS date, COUNT(*) AS analyses, {expressions},
+                COALESCE(AVG(CAST(json_extract(metrics_json, '$.quality_score') AS REAL)), 0) AS quality_score
+                FROM analysis_jobs WHERE user_id = ? AND created_at >= datetime('now', ?)
+                GROUP BY substr(created_at, 1, 10) ORDER BY date''', (user_id, f'-{days} days')).fetchall()
+        return [{'date': str(row['date']), 'analyses': int(row['analyses']), 'records': int(row['cleaned_records']), 'success': int(row['success_count']), 'failed': int(row['failed_count']), 'warning': int(row['warning_count']), 'unknown': int(row['unknown_count']), 'quality_score': round(float(row['quality_score']), 2)} for row in rows]
 
     def _latest_for_user(self, user_id: str) -> dict[str, Any] | None:
         with self._connect() as connection:
@@ -109,9 +127,16 @@ class AnalysisRepository:
 
     @staticmethod
     def _row_to_job(row: sqlite3.Row, include_records: bool) -> dict[str, Any]:
-        job = {'analysis_id': row['id'], 'filename': row['original_filename'], 'file_type': row['file_type'], 'file_size': row['file_size'], 'processing_status': row['status'], 'metrics': json.loads(row['metrics_json']), 'charts': json.loads(row['charts_json']), 'columns': json.loads(row['columns_json']), 'created_at': row['created_at'], 'completed_at': row['completed_at']}
+        metrics = json.loads(row['metrics_json'])
+        job = {
+            'analysis_id': row['id'], 'filename': row['original_filename'], 'file_type': row['file_type'],
+            'file_size': row['file_size'], 'processing_status': row['status'], 'metrics': metrics,
+            'charts': json.loads(row['charts_json']), 'columns': json.loads(row['columns_json']),
+            'created_at': row['created_at'], 'completed_at': row['completed_at'],
+            'warnings': metrics.get('warnings', []),
+        }
         if include_records:
             records = json.loads(row['records_json'])
-            job['preview'] = records[:20]
+            job['preview'] = records[:50]
             job['records'] = records
         return job
