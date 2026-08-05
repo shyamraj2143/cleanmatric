@@ -67,7 +67,7 @@ export async function apiRequest(path, options = {}) {
     response = await fetch(`${API_BASE_URL}${path}`, { ...fetchOptions, headers })
   } catch (error) {
     if (error?.name === 'AbortError') throw error
-    throw new ApiError('Server unavailable. Check your connection and try again.', 0, error)
+    throw new ApiError(`Server unavailable at ${API_BASE_URL}. Check the Railway public domain and redeploy the backend.`, 0, error)
   }
 
   let payload
