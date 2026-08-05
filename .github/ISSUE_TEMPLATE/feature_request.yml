@@ -1,0 +1,65 @@
+name: Feature request
+description: Suggest a focused improvement for CleanMetric
+title: "[Feature]: "
+labels:
+  - enhancement
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Propose the user problem first, then the solution. Keep the request focused and measurable.
+  - type: textarea
+    id: problem
+    attributes:
+      label: User problem
+      description: What difficulty or limitation should this solve?
+      placeholder: Explain the current pain point and who it affects.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: Describe the expected behavior and user flow.
+      placeholder: Explain how the feature should work.
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Product area
+      options:
+        - Data import
+        - Data profiling
+        - Cleaning rules
+        - Dashboard and visualization
+        - Export and reporting
+        - Authentication and workspace
+        - API and integrations
+        - Deployment and reliability
+        - Documentation
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: success
+    attributes:
+      label: Success criteria
+      description: How will we know the feature is complete and useful?
+      placeholder: List clear, testable outcomes.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Mention any simpler approaches or workarounds.
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Final checks
+      options:
+        - label: This request does not include secrets or private datasets.
+          required: true
+        - label: I searched existing issues before creating this request.
+          required: true
