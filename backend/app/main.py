@@ -35,10 +35,27 @@ def create_app(settings: Settings | None = None, store: UserStore | None = None,
 
     app = FastAPI(lifespan=lifespan, title='CleanMetric API', version='2.0.0',
                   description='Reliable data cleaning, profiling, analytics, and export API.')
-    origins = ['*'] if settings.allowed_origin == '*' else [item.strip() for item in settings.allowed_origin.split(',') if item.strip()]
-    app.add_middleware(CORSMiddleware, allow_origins=origins or ['http://localhost:3000'],
-                       allow_credentials=False, allow_methods=['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
-                       allow_headers=['Content-Type', 'Authorization'])
+
+    configured_origins = [item.strip() for item in settings.allowed_origin.split(',') if item.strip()]
+    if '*' in configured_origins:
+        origins = ['*']
+    else:
+        origins = list(dict.fromkeys([
+            *configured_origins,
+            'https://cleanmatric.site.je',
+            'http://localhost:3000',
+            'http://localhost:5173',
+        ]))
+
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=origins,
+        allow_credentials=False,
+        allow_methods=['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
+        allow_headers=['Content-Type', 'Authorization'],
+        expose_headers=['Content-Disposition'],
+        max_age=86400,
+    )
 
     async def current_user(authorization: str | None = Header(default=None)) -> User:
         if not authorization or not authorization.startswith('Bearer '):
