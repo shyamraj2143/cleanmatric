@@ -65,36 +65,73 @@ function AuthPage({ defaultMode = 'login' }) {
 
   useEffect(() => {
     if (isAuthenticated) return undefined
+
     const clientId = getConfigValue('VITE_GOOGLE_WEB_CLIENT_ID', 'GOOGLE_WEB_CLIENT_ID', 'GOOGLE_CLIENT_ID')
     if (!clientId) {
       setGoogleStatus('missing-config')
       return undefined
     }
 
+    let cancelled = false
     const renderGoogleButton = () => {
-      if (!window.google?.accounts?.id || !googleButtonRef.current) return
+      const host = googleButtonRef.current
+      if (cancelled || !host || !host.isConnected || !window.google?.accounts?.id) return
+
       if (!googleInitializedRef.current) {
         window.google.accounts.id.initialize({ client_id: clientId, callback: handleGoogleCredential })
         googleInitializedRef.current = true
       }
-      googleButtonRef.current.replaceChildren()
-      window.google.accounts.id.renderButton(googleButtonRef.current, { theme: 'outline', size: 'large', text: 'continue_with', shape: 'rectangular', width: Math.min(438, googleButtonRef.current.clientWidth || 438) })
+
+      // This host never contains React-rendered children. Google may safely own
+      // everything inside it without breaking React's DOM reconciliation.
+      host.replaceChildren()
+      const availableWidth = host.parentElement?.clientWidth || 438
+      window.google.accounts.id.renderButton(host, {
+        theme: 'outline',
+        size: 'large',
+        text: 'continue_with',
+        shape: 'rectangular',
+        width: Math.min(438, availableWidth),
+      })
       setGoogleStatus('ready')
+    }
+
+    const handleScriptError = () => {
+      if (cancelled) return
+      setGoogleStatus('load-error')
+      setMessage('Google sign-in could not be loaded.')
+      setMessageType('error')
+    }
+
+    if (window.google?.accounts?.id) {
+      renderGoogleButton()
+      return () => { cancelled = true }
     }
 
     const existingScript = document.querySelector(`script[src="${GOOGLE_SCRIPT_URL}"]`)
     if (existingScript) {
-      if (window.google?.accounts?.id) renderGoogleButton()
-      else existingScript.addEventListener('load', renderGoogleButton, { once: true })
-      return () => existingScript.removeEventListener('load', renderGoogleButton)
+      existingScript.addEventListener('load', renderGoogleButton, { once: true })
+      existingScript.addEventListener('error', handleScriptError, { once: true })
+      return () => {
+        cancelled = true
+        existingScript.removeEventListener('load', renderGoogleButton)
+        existingScript.removeEventListener('error', handleScriptError)
+      }
     }
+
     const script = document.createElement('script')
     script.src = GOOGLE_SCRIPT_URL
     script.async = true
+    script.defer = true
     script.addEventListener('load', renderGoogleButton, { once: true })
-    script.addEventListener('error', () => { setGoogleStatus('load-error'); setMessage('Google sign-in could not be loaded.'); setMessageType('error') }, { once: true })
+    script.addEventListener('error', handleScriptError, { once: true })
     document.head.appendChild(script)
-    return () => script.removeEventListener('load', renderGoogleButton)
+
+    return () => {
+      cancelled = true
+      script.removeEventListener('load', renderGoogleButton)
+      script.removeEventListener('error', handleScriptError)
+    }
   }, [handleGoogleCredential, isAuthenticated])
 
   const handleSubmit = async (event) => {
@@ -123,7 +160,12 @@ function AuthPage({ defaultMode = 'login' }) {
       <div className="auth-tabs" role="tablist" aria-label="Authentication options"><button className={isLogin ? 'active' : ''} type="button" onClick={() => switchPage('login')} role="tab" aria-selected={isLogin}>Sign in</button><button className={!isLogin ? 'active' : ''} type="button" onClick={() => switchPage('signup')} role="tab" aria-selected={!isLogin}>Create account</button></div>
       <div className="form-heading"><p className="eyebrow">{isLogin ? 'WELCOME BACK' : 'GET STARTED'}</p><h2>{isLogin ? 'Sign in to MetricFlow' : 'Create your account'}</h2><p>{isLogin ? 'Enter your details to access your workspace.' : 'Start turning your metrics into meaningful insight.'}</p></div>
       <form onSubmit={handleSubmit}>{!isLogin && <label>Full name<input type="text" name="name" placeholder="Enter your full name" autoComplete="name" required /></label>}<label>Work email<input type="email" name="email" placeholder="you@company.com" autoComplete="email" required /></label><label>Password<span className="password-field"><input type={showPassword ? 'text' : 'password'} name="password" placeholder={isLogin ? 'Enter your password' : 'Create a password'} autoComplete={isLogin ? 'current-password' : 'new-password'} minLength="8" required /><button type="button" className="password-toggle" onClick={() => setShowPassword(!showPassword)} aria-label={showPassword ? 'Hide password' : 'Show password'}><EyeIcon hidden={!showPassword} /></button></span></label>{isLogin ? <div className="form-options"><label className="checkbox-label"><input type="checkbox" name="remember" /><span>Remember me</span></label><button className="text-button" type="button">Forgot password?</button></div> : <label className="checkbox-label terms"><input type="checkbox" required /><span>I agree to the Terms of Service and Privacy Policy.</span></label>}<button className="primary-button" type="submit" disabled={isSubmitting}>{isSubmitting ? 'Please wait…' : isLogin ? 'Sign in' : 'Create account'} <span>→</span></button>{message && <p className={`form-message ${messageType}`} role="status">{message}</p>}</form>
-      <div className="divider"><span>or continue with</span></div><div ref={googleButtonRef} className="google-signin" aria-label="Continue with Google">{googleStatus !== 'ready' && <button className="google-fallback-button" type="button" disabled>{googleStatus === 'missing-config' ? 'Google sign-in not configured' : googleStatus === 'load-error' ? 'Google sign-in unavailable' : 'Loading Google sign-in...'}</button>}</div><p className="switch-copy">{isLogin ? "Don't have an account?" : 'Already have an account?'}<button type="button" className="text-button" onClick={() => switchPage(isLogin ? 'signup' : 'login')}>{isLogin ? 'Create one' : 'Sign in'}</button></p>
+      <div className="divider"><span>or continue with</span></div>
+      <div className="google-signin" aria-label="Continue with Google">
+        {googleStatus !== 'ready' && <button className="google-fallback-button" type="button" disabled>{googleStatus === 'missing-config' ? 'Google sign-in not configured' : googleStatus === 'load-error' ? 'Google sign-in unavailable' : 'Loading Google sign-in...'}</button>}
+        <div ref={googleButtonRef} className="google-button-host" hidden={googleStatus !== 'ready'} />
+      </div>
+      <p className="switch-copy">{isLogin ? "Don't have an account?" : 'Already have an account?'}<button type="button" className="text-button" onClick={() => switchPage(isLogin ? 'signup' : 'login')}>{isLogin ? 'Create one' : 'Sign in'}</button></p>
     </div></section>
   </main>
 }
