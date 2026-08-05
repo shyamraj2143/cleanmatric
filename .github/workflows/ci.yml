@@ -37,27 +37,42 @@ jobs:
       - uses: actions/checkout@v4
       - name: Build Railway production image from repository root
         run: docker build --tag cleanmetric-backend:ci .
-      - name: Smoke test production container
+      - name: Smoke test Railway port, compatibility port, and CORS preflight
         run: |
           docker run --detach --rm \
             --name cleanmetric-backend-ci \
             --publish 8080:8080 \
+            --publish 5000:5000 \
             --env PORT=8080 \
+            --env COMPAT_PORT=5000 \
             --env JWT_SECRET=ci-container-secret-that-is-long-enough \
             --env DATABASE_URL=sqlite:////data/ci.db \
-            --env ALLOWED_ORIGIN=http://localhost:3000 \
+            --env ALLOWED_ORIGIN=https://cleanmatric.site.je \
             cleanmetric-backend:ci
 
           for attempt in $(seq 1 30); do
             if curl --fail --silent --show-error http://127.0.0.1:8080/health; then
-              curl --fail --silent --show-error http://127.0.0.1:8080/api/public/config | grep -q 'google_sign_in_enabled'
-              exit 0
+              break
             fi
             sleep 2
           done
 
-          docker logs cleanmetric-backend-ci
-          exit 1
+          curl --fail --silent --show-error http://127.0.0.1:8080/health | grep -q 'cleanmetric-api'
+          curl --fail --silent --show-error http://127.0.0.1:5000/health | grep -q 'cleanmetric-api'
+          curl --fail --silent --show-error http://127.0.0.1:8080/api/public/config | grep -q 'google_sign_in_enabled'
+
+          for port in 8080 5000; do
+            headers=$(curl --silent --show-error --include \
+              --request OPTIONS "http://127.0.0.1:${port}/api/auth/register" \
+              --header 'Origin: https://cleanmatric.site.je' \
+              --header 'Access-Control-Request-Method: POST' \
+              --header 'Access-Control-Request-Headers: content-type')
+            echo "$headers" | grep -q '200 OK'
+            echo "$headers" | tr -d '\r' | grep -qi '^access-control-allow-origin: https://cleanmatric.site.je$'
+          done
+      - name: Show backend logs after failure
+        if: failure()
+        run: docker logs cleanmetric-backend-ci || true
       - name: Stop smoke-test container
         if: always()
         run: docker stop cleanmetric-backend-ci || true
@@ -101,6 +116,7 @@ jobs:
             --name cleanmetric-backend-integration \
             --network cleanmetric-integration \
             --env PORT=8080 \
+            --env COMPAT_PORT=5000 \
             --env JWT_SECRET=ci-integration-secret-that-is-long-enough \
             --env DATABASE_URL=sqlite:////tmp/integration.db \
             --env ALLOWED_ORIGIN=http://localhost:3000 \
@@ -112,10 +128,10 @@ jobs:
             --publish 3000:3000 \
             --env PORT=3000 \
             --env VITE_USE_API_PROXY=true \
-            --env API_PROXY_TARGET=http://cleanmetric-backend-integration:8080 \
+            --env API_PROXY_TARGET=http://cleanmetric-backend-integration:5000,http://cleanmetric-backend-integration:8080 \
             --env VITE_GOOGLE_WEB_CLIENT_ID=776507506876-vjrrc9m5eer82k6digta7ie2phd4l1f8.apps.googleusercontent.com \
             cleanmetric-frontend:integration
-      - name: Verify frontend shell, backend proxy, auth, and runtime config
+      - name: Verify frontend shell, both backend ports, proxy, auth, and runtime config
         run: |
           for attempt in $(seq 1 40); do
             if curl --fail --silent --show-error http://127.0.0.1:3000/health; then
