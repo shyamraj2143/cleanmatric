@@ -4,12 +4,14 @@ import { BrowserRouter } from 'react-router-dom'
 import App from './App'
 import { AuthProvider } from './auth/AuthContext'
 import AppErrorBoundary from './components/AppErrorBoundary'
+import AuthHomeButton from './components/AuthHomeButton'
 import { DEFAULT_BACKEND_URL, normalizeApiBaseUrl } from './config'
 import { applyInitialTheme, PreferencesProvider } from './settings/PreferencesContext'
 import './styles/style.css'
 import './styles/landing.css'
 import './styles/responsive.css'
 import './styles/advanced.css'
+import './styles/auth-navigation.css'
 
 async function bootstrapBackendConfig() {
   const currentConfig = window.__METRICFLOW_CONFIG__ || {}
@@ -82,6 +84,7 @@ async function startApplication() {
     <React.StrictMode>
       <AppErrorBoundary>
         <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+          <AuthHomeButton />
           <AuthProvider><PreferencesProvider><App /></PreferencesProvider></AuthProvider>
         </BrowserRouter>
       </AppErrorBoundary>
