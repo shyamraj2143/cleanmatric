@@ -50,6 +50,7 @@ jobs:
 
           for attempt in $(seq 1 30); do
             if curl --fail --silent --show-error http://127.0.0.1:5000/health; then
+              curl --fail --silent --show-error http://127.0.0.1:5000/api/public/config | grep -q 'google_sign_in_enabled'
               exit 0
             fi
             sleep 2
@@ -77,4 +78,36 @@ jobs:
       - run: npm test
       - run: npm run build
         env:
-          VITE_API_BASE_URL: http://127.0.0.1:8000
+          VITE_API_BASE_URL: https://amusing-renewal-production.up.railway.app
+          VITE_GOOGLE_WEB_CLIENT_ID: 776507506876-vjrrc9m5eer82k6digta7ie2phd4l1f8.apps.googleusercontent.com
+
+  frontend-container:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build production frontend image
+        run: docker build --tag cleanmetric-frontend:ci frontend
+      - name: Smoke test frontend, runtime config, and SPA shell
+        run: |
+          docker run --detach --rm \
+            --name cleanmetric-frontend-ci \
+            --publish 3000:3000 \
+            --env PORT=3000 \
+            --env VITE_API_BASE_URL=https://amusing-renewal-production.up.railway.app \
+            --env VITE_GOOGLE_WEB_CLIENT_ID=776507506876-vjrrc9m5eer82k6digta7ie2phd4l1f8.apps.googleusercontent.com \
+            cleanmetric-frontend:ci
+
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent --show-error http://127.0.0.1:3000/health; then
+              curl --fail --silent --show-error http://127.0.0.1:3000/config.js | grep -q 'VITE_GOOGLE_WEB_CLIENT_ID'
+              curl --fail --silent --show-error http://127.0.0.1:3000/ | grep -q 'id="root"'
+              exit 0
+            fi
+            sleep 2
+          done
+
+          docker logs cleanmetric-frontend-ci
+          exit 1
+      - name: Stop frontend smoke-test container
+        if: always()
+        run: docker stop cleanmetric-frontend-ci || true
