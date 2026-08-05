@@ -53,6 +53,17 @@ Set `VITE_API_BASE_URL=http://127.0.0.1:8000` when the backend runs locally.
 | `GOOGLE_WEB_CLIENT_ID` | Optional Google sign-in client ID | unset |
 | `VITE_API_BASE_URL` | Frontend API URL | `http://127.0.0.1:8000` |
 
+For Railway frontend deployments, set these service variables:
+
+- `VITE_API_BASE_URL`: your Railway backend URL, for example `https://amusing-renewal-production.up.railway.app`
+- `VITE_GOOGLE_WEB_CLIENT_ID`: your Google OAuth Web client ID
+
+For Railway backend deployments, set:
+
+- `JWT_SECRET`
+- `ALLOWED_ORIGIN`: your frontend domain, for example `https://cleanmatric.site`
+- `GOOGLE_WEB_CLIENT_ID`: the same Google OAuth Web client ID
+
 ## API highlights
 
 - `POST /api/v1/files/analyze` — upload and clean a dataset; optional multipart `cleaning_config` JSON.

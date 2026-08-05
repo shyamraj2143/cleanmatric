@@ -24,6 +24,23 @@ const mimeTypes = {
   '.woff2': 'font/woff2',
 }
 
+const publicConfig = {
+  VITE_API_BASE_URL: process.env.VITE_API_BASE_URL || process.env.API_BASE_URL || '',
+  VITE_API_URL: process.env.VITE_API_URL || '',
+  VITE_GOOGLE_WEB_CLIENT_ID: process.env.VITE_GOOGLE_WEB_CLIENT_ID || process.env.GOOGLE_WEB_CLIENT_ID || process.env.GOOGLE_CLIENT_ID || '',
+}
+
+const sendConfig = (response, requestMethod) => {
+  const body = `window.__METRICFLOW_CONFIG__ = ${JSON.stringify(publicConfig)};`
+  response.writeHead(200, {
+    'Content-Type': 'text/javascript; charset=utf-8',
+    'Content-Length': Buffer.byteLength(body),
+    'Cache-Control': 'no-cache',
+    'X-Content-Type-Options': 'nosniff',
+  })
+  response.end(requestMethod === 'HEAD' ? undefined : body)
+}
+
 const sendFile = async (response, filePath, requestMethod) => {
   const content = await readFile(filePath)
   const extension = path.extname(filePath).toLowerCase()
@@ -43,6 +60,10 @@ const server = http.createServer(async (request, response) => {
       const body = JSON.stringify({ status: 'healthy', service: 'cleanmetric-web' })
       response.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Content-Length': Buffer.byteLength(body) })
       response.end(request.method === 'HEAD' ? undefined : body)
+      return
+    }
+    if (requestUrl.pathname === '/config.js') {
+      sendConfig(response, request.method)
       return
     }
 

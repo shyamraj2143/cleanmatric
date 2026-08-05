@@ -2,6 +2,7 @@ import React, { lazy, Suspense, useCallback, useEffect, useRef, useState } from 
 import { Navigate, Outlet, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from './auth/AuthContext'
 import DashboardLayout from './components/dashboard/DashboardLayout'
+import { getConfigValue } from './config'
 import { authApi } from './services/api'
 
 const AnalysisDetailPage = lazy(() => import('./pages/AnalysisDetailPage'))
@@ -31,6 +32,7 @@ function AuthPage({ defaultMode = 'login' }) {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const googleButtonRef = useRef(null)
   const googleInitializedRef = useRef(false)
+  const [googleStatus, setGoogleStatus] = useState('loading')
   const isLogin = page === 'login'
 
   useEffect(() => setPage(defaultMode), [defaultMode])
@@ -63,8 +65,11 @@ function AuthPage({ defaultMode = 'login' }) {
 
   useEffect(() => {
     if (isAuthenticated) return undefined
-    const clientId = import.meta.env.VITE_GOOGLE_WEB_CLIENT_ID
-    if (!clientId) return undefined
+    const clientId = getConfigValue('VITE_GOOGLE_WEB_CLIENT_ID', 'GOOGLE_WEB_CLIENT_ID', 'GOOGLE_CLIENT_ID')
+    if (!clientId) {
+      setGoogleStatus('missing-config')
+      return undefined
+    }
 
     const renderGoogleButton = () => {
       if (!window.google?.accounts?.id || !googleButtonRef.current) return
@@ -74,6 +79,7 @@ function AuthPage({ defaultMode = 'login' }) {
       }
       googleButtonRef.current.replaceChildren()
       window.google.accounts.id.renderButton(googleButtonRef.current, { theme: 'outline', size: 'large', text: 'continue_with', shape: 'rectangular', width: Math.min(438, googleButtonRef.current.clientWidth || 438) })
+      setGoogleStatus('ready')
     }
 
     const existingScript = document.querySelector(`script[src="${GOOGLE_SCRIPT_URL}"]`)
@@ -86,7 +92,7 @@ function AuthPage({ defaultMode = 'login' }) {
     script.src = GOOGLE_SCRIPT_URL
     script.async = true
     script.addEventListener('load', renderGoogleButton, { once: true })
-    script.addEventListener('error', () => { setMessage('Google sign-in could not be loaded.'); setMessageType('error') }, { once: true })
+    script.addEventListener('error', () => { setGoogleStatus('load-error'); setMessage('Google sign-in could not be loaded.'); setMessageType('error') }, { once: true })
     document.head.appendChild(script)
     return () => script.removeEventListener('load', renderGoogleButton)
   }, [handleGoogleCredential, isAuthenticated])
@@ -117,7 +123,7 @@ function AuthPage({ defaultMode = 'login' }) {
       <div className="auth-tabs" role="tablist" aria-label="Authentication options"><button className={isLogin ? 'active' : ''} type="button" onClick={() => switchPage('login')} role="tab" aria-selected={isLogin}>Sign in</button><button className={!isLogin ? 'active' : ''} type="button" onClick={() => switchPage('signup')} role="tab" aria-selected={!isLogin}>Create account</button></div>
       <div className="form-heading"><p className="eyebrow">{isLogin ? 'WELCOME BACK' : 'GET STARTED'}</p><h2>{isLogin ? 'Sign in to MetricFlow' : 'Create your account'}</h2><p>{isLogin ? 'Enter your details to access your workspace.' : 'Start turning your metrics into meaningful insight.'}</p></div>
       <form onSubmit={handleSubmit}>{!isLogin && <label>Full name<input type="text" name="name" placeholder="Enter your full name" autoComplete="name" required /></label>}<label>Work email<input type="email" name="email" placeholder="you@company.com" autoComplete="email" required /></label><label>Password<span className="password-field"><input type={showPassword ? 'text' : 'password'} name="password" placeholder={isLogin ? 'Enter your password' : 'Create a password'} autoComplete={isLogin ? 'current-password' : 'new-password'} minLength="8" required /><button type="button" className="password-toggle" onClick={() => setShowPassword(!showPassword)} aria-label={showPassword ? 'Hide password' : 'Show password'}><EyeIcon hidden={!showPassword} /></button></span></label>{isLogin ? <div className="form-options"><label className="checkbox-label"><input type="checkbox" name="remember" /><span>Remember me</span></label><button className="text-button" type="button">Forgot password?</button></div> : <label className="checkbox-label terms"><input type="checkbox" required /><span>I agree to the Terms of Service and Privacy Policy.</span></label>}<button className="primary-button" type="submit" disabled={isSubmitting}>{isSubmitting ? 'Please wait…' : isLogin ? 'Sign in' : 'Create account'} <span>→</span></button>{message && <p className={`form-message ${messageType}`} role="status">{message}</p>}</form>
-      <div className="divider"><span>or continue with</span></div><div ref={googleButtonRef} className="google-signin" aria-label="Continue with Google" /><p className="switch-copy">{isLogin ? "Don't have an account?" : 'Already have an account?'}<button type="button" className="text-button" onClick={() => switchPage(isLogin ? 'signup' : 'login')}>{isLogin ? 'Create one' : 'Sign in'}</button></p>
+      <div className="divider"><span>or continue with</span></div><div ref={googleButtonRef} className="google-signin" aria-label="Continue with Google">{googleStatus !== 'ready' && <button className="google-fallback-button" type="button" disabled>{googleStatus === 'missing-config' ? 'Google sign-in not configured' : googleStatus === 'load-error' ? 'Google sign-in unavailable' : 'Loading Google sign-in...'}</button>}</div><p className="switch-copy">{isLogin ? "Don't have an account?" : 'Already have an account?'}<button type="button" className="text-button" onClick={() => switchPage(isLogin ? 'signup' : 'login')}>{isLogin ? 'Create one' : 'Sign in'}</button></p>
     </div></section>
   </main>
 }

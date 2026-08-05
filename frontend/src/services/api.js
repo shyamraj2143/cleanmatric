@@ -1,4 +1,6 @@
-const configuredBaseUrl = import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000'
+import { getConfigValue } from '../config'
+
+const configuredBaseUrl = getConfigValue('VITE_API_BASE_URL', 'VITE_API_URL') || 'http://127.0.0.1:8000'
 export const API_BASE_URL = configuredBaseUrl.replace(/\/$/, '')
 
 export class ApiError extends Error {
