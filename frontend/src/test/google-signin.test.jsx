@@ -8,11 +8,15 @@ import { renderApp } from './testUtils'
 describe('Google Sign-In integration', () => {
   beforeEach(() => {
     localStorage.clear()
+    window.__METRICFLOW_CONFIG__ = {
+      VITE_GOOGLE_WEB_CLIENT_ID: 'test-client.apps.googleusercontent.com',
+    }
     vi.stubGlobal('fetch', vi.fn())
   })
 
   afterEach(() => {
     delete window.google
+    delete window.__METRICFLOW_CONFIG__
     vi.restoreAllMocks()
     vi.unstubAllGlobals()
   })
