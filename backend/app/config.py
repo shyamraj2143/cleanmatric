@@ -119,6 +119,15 @@ def _write_recovery_backup(source_path: Path, backup_directory: Path) -> None:
         print(f'CleanMetric recovery backup failed: {error}', flush=True)
 
 
+def _is_inside(path: Path, directory: Path) -> bool:
+    try:
+        resolved_path = path.resolve()
+        resolved_directory = directory.resolve()
+        return resolved_path == resolved_directory or resolved_directory in resolved_path.parents
+    except OSError:
+        return False
+
+
 def _resolve_database_url() -> str:
     configured_url = os.getenv('DATABASE_URL', '').strip()
     volume_mount_value = os.getenv('RAILWAY_VOLUME_MOUNT_PATH', '').strip()
@@ -133,18 +142,15 @@ def _resolve_database_url() -> str:
 
     preferred_path = volume_mount / 'metricflow.db'
     if configured_path is not None:
-        try:
-            resolved_configured_path = configured_path.resolve()
-            if resolved_configured_path == volume_mount or volume_mount in resolved_configured_path.parents:
-                preferred_path = resolved_configured_path
-            else:
-                print(
-                    f'CleanMetric ignored non-persistent DATABASE_URL {resolved_configured_path}; '
-                    f'Railway volume is mounted at {volume_mount}.',
-                    flush=True,
-                )
-        except OSError:
-            pass
+        resolved_configured_path = configured_path.resolve()
+        if _is_inside(resolved_configured_path, volume_mount):
+            preferred_path = resolved_configured_path
+        else:
+            print(
+                f'CleanMetric ignored non-persistent DATABASE_URL {resolved_configured_path}; '
+                f'Railway volume is mounted at {volume_mount}.',
+                flush=True,
+            )
 
     candidates: set[Path] = {preferred_path}
     for pattern in ('*.db', '*.sqlite', '*.sqlite3'):
@@ -156,7 +162,7 @@ def _resolve_database_url() -> str:
         except OSError:
             pass
 
-    # Include common legacy paths only when they still exist in the running container.
+    # Include common legacy paths only so their data can be migrated into the volume.
     for legacy_path in (
         Path('/app/metricflow.db'),
         Path('/app/backend/metricflow.db'),
@@ -169,9 +175,24 @@ def _resolve_database_url() -> str:
             pass
 
     selected_path = max(candidates, key=_database_score)
-    if _database_score(selected_path) == (0, 0, 0):
+    selected_score = _database_score(selected_path)
+
+    if selected_score == (0, 0, 0):
         selected_path = preferred_path
         _restore_latest_backup(preferred_path, backup_directory)
+    elif not _is_inside(selected_path, volume_mount):
+        # Never continue writing to an ephemeral legacy path. Migrate it first.
+        try:
+            _sqlite_backup(selected_path, preferred_path)
+            print(
+                f'CleanMetric migrated legacy database {selected_path} to {preferred_path}.',
+                flush=True,
+            )
+            selected_path = preferred_path
+        except (OSError, sqlite3.DatabaseError) as error:
+            raise RuntimeError(
+                f'Unable to migrate legacy database {selected_path} into Railway volume {preferred_path}.'
+            ) from error
 
     selected_path.parent.mkdir(parents=True, exist_ok=True)
     selected_score = _database_score(selected_path)
