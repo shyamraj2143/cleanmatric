@@ -12,7 +12,7 @@ describe('dashboard access and session handling', () => {
 
   it('redirects an unauthenticated dashboard request to login', async () => {
     renderApp(<App />, { route: '/dashboard' })
-    expect(await screen.findByRole('heading', { name: 'Sign in to MetricFlow' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Sign in to CleanMetric' })).toBeInTheDocument()
   })
 
   it('redirects to login when a protected request returns 401', async () => {
@@ -20,7 +20,7 @@ describe('dashboard access and session handling', () => {
     localStorage.setItem('metricflow_user', JSON.stringify({ name: 'Student' }))
     fetch.mockResolvedValue(jsonResponse({ detail: 'Session expired' }, { status: 401 }))
     renderApp(<App />, { route: '/dashboard/history' })
-    await waitFor(() => expect(screen.getByRole('heading', { name: 'Sign in to MetricFlow' })).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'Sign in to CleanMetric' })).toBeInTheDocument())
     expect(localStorage.getItem('metricflow_token')).toBeNull()
   })
 })
