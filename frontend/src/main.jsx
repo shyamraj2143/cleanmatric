@@ -4,19 +4,16 @@ import { BrowserRouter } from 'react-router-dom'
 import App from './App'
 import { AuthProvider } from './auth/AuthContext'
 import AppErrorBoundary from './components/AppErrorBoundary'
+import { DEFAULT_BACKEND_URL, normalizeApiBaseUrl } from './config'
 import { applyInitialTheme, PreferencesProvider } from './settings/PreferencesContext'
 import './styles/style.css'
 import './styles/landing.css'
 import './styles/responsive.css'
 import './styles/advanced.css'
 
-const DEFAULT_BACKEND_URL = 'https://amusing-renewal-production.up.railway.app'
-
-const normalizeBaseUrl = (value) => String(value || '').trim().replace(/\/$/, '')
-
 async function bootstrapBackendConfig() {
   const currentConfig = window.__METRICFLOW_CONFIG__ || {}
-  const configuredBackend = normalizeBaseUrl(
+  const configuredBackend = normalizeApiBaseUrl(
     currentConfig.VITE_API_BASE_URL
       || import.meta.env.VITE_API_BASE_URL
       || DEFAULT_BACKEND_URL,
@@ -38,7 +35,7 @@ async function bootstrapBackendConfig() {
       const response = await fetch(endpoint, {
         headers: { Accept: 'application/json' },
         cache: 'no-store',
-        signal: AbortSignal.timeout(5000),
+        signal: AbortSignal.timeout(7000),
       })
       const contentType = response.headers.get('content-type') || ''
       if (!response.ok || !contentType.includes('application/json')) continue
@@ -53,7 +50,7 @@ async function bootstrapBackendConfig() {
       }
       return
     } catch (error) {
-      console.warn(`MetricFlow could not load backend config from ${endpoint}.`, error)
+      console.warn(`CleanMetric could not load backend config from ${endpoint}.`, error)
     }
   }
 
@@ -75,11 +72,11 @@ async function startApplication() {
   try {
     applyInitialTheme()
   } catch (error) {
-    console.warn('MetricFlow theme initialization failed; using the browser default.', error)
+    console.warn('CleanMetric theme initialization failed; using the browser default.', error)
   }
 
   const rootElement = document.getElementById('root')
-  if (!rootElement) throw new Error('MetricFlow root element was not found.')
+  if (!rootElement) throw new Error('CleanMetric root element was not found.')
 
   createRoot(rootElement).render(
     <React.StrictMode>
@@ -93,6 +90,6 @@ async function startApplication() {
 }
 
 startApplication().catch((error) => {
-  console.error('MetricFlow startup failed.', error)
+  console.error('CleanMetric startup failed.', error)
   window.__METRICFLOW_BOOTED__ = true
 })
