@@ -1,4 +1,5 @@
 import asyncio
+import logging
 from secrets import token_urlsafe
 from typing import Callable
 
@@ -8,6 +9,9 @@ from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 from app.config import Settings
 from app.security import create_access_token, hash_password, verify_password
 from app.user_store import User, UserStore
+
+
+logger = logging.getLogger(__name__)
 
 
 class RegisterRequest(BaseModel):
@@ -72,16 +76,26 @@ def build_auth_router(store: UserStore, settings: Settings, verifier: Callable[[
     @router.post('/google', response_model=AuthResponse)
     async def google_auth(payload: GoogleAuthRequest) -> AuthResponse:
         if not settings.google_web_client_id:
-            raise HTTPException(status_code=503, detail='Google sign-in is not configured.')
+            raise HTTPException(status_code=503, detail='Google sign-in is not configured on the backend.')
         try:
             claims = await asyncio.to_thread(verifier, payload.credential, settings.google_web_client_id)
         except ValueError as error:
-            raise HTTPException(status_code=401, detail='Google sign-in failed. Check that this domain is allowed in the Google OAuth Web client.') from error
+            raise HTTPException(
+                status_code=401,
+                detail='Google sign-in failed because the credential does not match the configured Web Client ID.',
+            ) from error
+        except Exception as error:
+            logger.exception('Google credential verification failed unexpectedly.')
+            raise HTTPException(
+                status_code=503,
+                detail='Google authentication is temporarily unavailable. Please retry in a moment.',
+            ) from error
+
         if claims.get('aud') != settings.google_web_client_id or not claims.get('email_verified'):
             raise HTTPException(status_code=401, detail='Invalid Google credential.')
         email = str(claims.get('email', '')).lower()
         if not email:
-            raise HTTPException(status_code=401, detail='Invalid Google credential.')
+            raise HTTPException(status_code=401, detail='Google did not return a verified email address.')
         name = str(claims.get('name') or email.split('@')[0]).strip()
         user = await store.find_by_email(email)
         if user is None:
