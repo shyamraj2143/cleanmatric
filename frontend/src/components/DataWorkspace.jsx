@@ -1,6 +1,5 @@
 import React, { useRef, useState } from 'react'
-
-const API_URL = import.meta.env.VITE_API_URL
+import { API_BASE_URL } from '../services/api'
 
 const getErrorMessage = (detail) => {
   if (typeof detail === 'string') return detail
@@ -27,7 +26,7 @@ function DataWorkspace() {
     setMessage('')
 
     try {
-      const response = await fetch(`${API_URL}/api/data/process`, { method: 'POST', body: formData })
+      const response = await fetch(`${API_BASE_URL}/api/data/process`, { method: 'POST', body: formData })
       const payload = await response.json()
       if (!response.ok) throw new Error(getErrorMessage(payload.detail))
       setResult(payload)
