@@ -3,13 +3,21 @@ import { storage } from '../utils/storage'
 
 const currentHostname = globalThis.location?.hostname || ''
 const isLocalDevelopment = currentHostname === 'localhost' || currentHostname === '127.0.0.1' || currentHostname === ''
-const configuredBaseUrl = getConfigValue('VITE_API_BASE_URL', 'VITE_API_URL')
-const useSameOriginProxy = !isLocalDevelopment && getConfigValue('VITE_USE_API_PROXY') !== 'false'
-const defaultBaseUrl = isLocalDevelopment ? 'http://127.0.0.1:8000' : ''
-const selectedBaseUrl = useSameOriginProxy ? '' : (configuredBaseUrl || defaultBaseUrl)
-export const API_BASE_URL = selectedBaseUrl.replace(/\/$/, '')
+const configuredBaseUrl = getConfigValue('VITE_API_BASE_URL', 'VITE_API_URL').replace(/\/$/, '')
+const useSameOriginProxy = !isLocalDevelopment && getConfigValue('VITE_USE_API_PROXY').toLowerCase() === 'true'
+const publicBaseUrl = configuredBaseUrl || (isLocalDevelopment ? 'http://127.0.0.1:8000' : 'https://amusing-renewal-production.up.railway.app')
 
-const buildApiUrl = (path) => API_BASE_URL ? `${API_BASE_URL}${path}` : path
+export const API_BASE_URL = useSameOriginProxy ? '' : publicBaseUrl
+
+const requestBases = [...new Set(
+  isLocalDevelopment
+    ? [publicBaseUrl]
+    : useSameOriginProxy
+      ? ['', publicBaseUrl]
+      : [publicBaseUrl],
+)]
+
+const buildApiUrl = (baseUrl, path) => baseUrl ? `${baseUrl}${path}` : path
 
 export class ApiError extends Error {
   constructor(message, status = 0, detail = null) {
@@ -53,6 +61,13 @@ const parseResponse = (response, responseType) => {
   return payloadPromise
 }
 
+const shouldTryNextDestination = (response, hasNextDestination) => {
+  if (!hasNextDestination) return false
+  const contentType = response.headers.get('content-type') || ''
+  if (contentType.includes('text/html')) return true
+  return [404, 502, 503, 504].includes(response.status)
+}
+
 export async function apiRequest(path, options = {}) {
   const { auth = true, responseType, headers: suppliedHeaders, ...fetchOptions } = options
   const headers = new Headers(suppliedHeaders || {})
@@ -64,13 +79,33 @@ export async function apiRequest(path, options = {}) {
     headers.set('Content-Type', 'application/json')
   }
 
-  let response
-  try {
-    response = await fetch(buildApiUrl(path), { ...fetchOptions, headers })
-  } catch (error) {
-    if (error?.name === 'AbortError') throw error
-    const destination = API_BASE_URL || 'the same-origin backend proxy'
-    throw new ApiError(`Unable to reach ${destination}. Check that the latest frontend and backend deployments are active.`, 0, error)
+  let response = null
+  const connectionErrors = []
+
+  for (let index = 0; index < requestBases.length; index += 1) {
+    const baseUrl = requestBases[index]
+    const destination = baseUrl || 'same-origin proxy'
+    try {
+      const candidateResponse = await fetch(buildApiUrl(baseUrl, path), { ...fetchOptions, headers })
+      const hasNextDestination = index < requestBases.length - 1
+      if (shouldTryNextDestination(candidateResponse, hasNextDestination)) {
+        connectionErrors.push(`${destination} returned ${candidateResponse.status}`)
+        continue
+      }
+      response = candidateResponse
+      break
+    } catch (error) {
+      if (error?.name === 'AbortError') throw error
+      connectionErrors.push(`${destination}: ${error instanceof Error ? error.message : String(error)}`)
+    }
+  }
+
+  if (!response) {
+    throw new ApiError(
+      'Server unavailable. The frontend could not reach the Railway backend through either the configured route or fallback route.',
+      0,
+      connectionErrors,
+    )
   }
 
   let payload
