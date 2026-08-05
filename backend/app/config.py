@@ -7,6 +7,8 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+DEFAULT_GOOGLE_WEB_CLIENT_ID = '776507506876-vjrrc9m5eer82k6digta7ie2phd4l1f8.apps.googleusercontent.com'
+
 
 def _positive_integer(value: str | None, default: int) -> int:
     try:
@@ -39,5 +41,10 @@ class Settings:
             token_expires_in_seconds=_positive_integer(os.getenv('JWT_EXPIRES_IN_SECONDS'), 86_400),
             database_url=database_url,
             allowed_origin=os.getenv('ALLOWED_ORIGIN', '*'),
-            google_web_client_id=os.getenv('GOOGLE_WEB_CLIENT_ID') or os.getenv('GOOGLE_CLIENT_ID') or os.getenv('VITE_GOOGLE_WEB_CLIENT_ID'),
+            google_web_client_id=(
+                os.getenv('GOOGLE_WEB_CLIENT_ID')
+                or os.getenv('GOOGLE_CLIENT_ID')
+                or os.getenv('VITE_GOOGLE_WEB_CLIENT_ID')
+                or DEFAULT_GOOGLE_WEB_CLIENT_ID
+            ),
         )
