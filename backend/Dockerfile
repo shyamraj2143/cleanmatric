@@ -22,21 +22,34 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1 \
     PATH="/opt/venv/bin:$PATH" \
+    NODE_ENV=production \
     PORT=5000 \
-    WEB_CONCURRENCY=1 \
     DATABASE_URL="sqlite:////data/metricflow.db"
 
-RUN groupadd --gid 10001 cleanmetric \
+RUN apt-get update \
+    && apt-get install --yes --no-install-recommends gosu \
+    && rm -rf /var/lib/apt/lists/* \
+    && groupadd --gid 10001 cleanmetric \
     && useradd --uid 10001 --gid cleanmetric --create-home --shell /usr/sbin/nologin cleanmetric \
     && mkdir --parents /app /data \
-    && chown --recursive cleanmetric:cleanmetric /app /data
+    && chown --recursive cleanmetric:cleanmetric /app /data \
+    && printf '%s\n' \
+        '#!/bin/sh' \
+        'set -eu' \
+        'umask 027' \
+        'if [ "$(id -u)" = "0" ]; then' \
+        '  mkdir -p /data' \
+        '  chown -R cleanmetric:cleanmetric /data' \
+        '  exec gosu cleanmetric "$@"' \
+        'fi' \
+        'exec "$@"' \
+        > /usr/local/bin/docker-entrypoint.sh \
+    && chmod 0755 /usr/local/bin/docker-entrypoint.sh
 
 WORKDIR /app
 
 COPY --from=builder /opt/venv /opt/venv
 COPY --chown=cleanmetric:cleanmetric app ./app
-
-USER cleanmetric
 
 EXPOSE 5000
 VOLUME ["/data"]
@@ -46,4 +59,5 @@ STOPSIGNAL SIGTERM
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
     CMD python -c "import os, urllib.request; urllib.request.urlopen('http://127.0.0.1:' + os.getenv('PORT', '5000') + '/health', timeout=3).read()" || exit 1
 
-CMD ["sh", "-c", "exec uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-5000} --workers ${WEB_CONCURRENCY:-1} --proxy-headers --forwarded-allow-ips='*' --timeout-keep-alive 75 --no-server-header"]
+ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
+CMD ["sh", "-c", "exec uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-5000} --workers 1 --proxy-headers --forwarded-allow-ips='*' --timeout-keep-alive 75 --no-server-header"]
