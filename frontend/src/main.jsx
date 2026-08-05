@@ -6,6 +6,7 @@ import { AuthProvider } from './auth/AuthContext'
 import AppErrorBoundary from './components/AppErrorBoundary'
 import { applyInitialTheme, PreferencesProvider } from './settings/PreferencesContext'
 import './styles/style.css'
+import './styles/landing.css'
 import './styles/responsive.css'
 import './styles/advanced.css'
 
