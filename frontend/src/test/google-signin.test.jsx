@@ -42,7 +42,7 @@ describe('Google Sign-In integration', () => {
     await user.click(screen.getByRole('tab', { name: 'Create account' }))
     expect(await screen.findByRole('heading', { name: 'Create your account' })).toBeInTheDocument()
     await user.click(screen.getByRole('tab', { name: 'Sign in' }))
-    expect(await screen.findByRole('heading', { name: 'Sign in to MetricFlow' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Sign in to CleanMetric' })).toBeInTheDocument()
 
     expect(screen.getByRole('button', { name: 'Continue with Google' })).toBeInTheDocument()
     expect(consoleError).not.toHaveBeenCalled()
