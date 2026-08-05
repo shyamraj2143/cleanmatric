@@ -10,6 +10,7 @@ import './styles/responsive.css'
 import './styles/advanced.css'
 
 window.__METRICFLOW_BOOTED__ = true
+try { sessionStorage.removeItem('metricflow_bundle_recovery') } catch {}
 
 try {
   applyInitialTheme()
