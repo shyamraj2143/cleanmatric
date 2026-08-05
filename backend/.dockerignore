@@ -1,0 +1,42 @@
+# Version control and editor files
+.git
+.gitignore
+.github
+.vscode
+.idea
+
+# Python caches and local environments
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.venv/
+venv/
+env/
+
+# Local configuration and secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Runtime data must live on the Railway volume
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+/data/
+
+# Development-only files
+requirements-dev.txt
+tests/
+
+# OS and temporary files
+.DS_Store
+Thumbs.db
+*.log
+*.tmp
