@@ -27,6 +27,6 @@ describe('public CleanMetric website', () => {
     const navigation = screen.getByRole('navigation', { name: 'Primary navigation' })
     await user.click(within(navigation).getByRole('link', { name: 'Sign in' }))
 
-    expect(await screen.findByRole('heading', { name: 'Sign in to MetricFlow' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Sign in to CleanMetric' })).toBeInTheDocument()
   })
 })
