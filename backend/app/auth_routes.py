@@ -76,7 +76,7 @@ def build_auth_router(store: UserStore, settings: Settings, verifier: Callable[[
         try:
             claims = await asyncio.to_thread(verifier, payload.credential, settings.google_web_client_id)
         except ValueError as error:
-            raise HTTPException(status_code=401, detail='Invalid Google credential.') from error
+            raise HTTPException(status_code=401, detail='Google sign-in failed. Check that this domain is allowed in the Google OAuth Web client.') from error
         if claims.get('aud') != settings.google_web_client_id or not claims.get('email_verified'):
             raise HTTPException(status_code=401, detail='Invalid Google credential.')
         email = str(claims.get('email', '')).lower()

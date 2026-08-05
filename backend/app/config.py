@@ -38,6 +38,6 @@ class Settings:
             jwt_secret=jwt_secret,
             token_expires_in_seconds=_positive_integer(os.getenv('JWT_EXPIRES_IN_SECONDS'), 86_400),
             database_url=database_url,
-            allowed_origin=os.getenv('ALLOWED_ORIGIN', 'http://localhost:3000'),
+            allowed_origin=os.getenv('ALLOWED_ORIGIN', '*'),
             google_web_client_id=os.getenv('GOOGLE_WEB_CLIENT_ID') or os.getenv('GOOGLE_CLIENT_ID') or os.getenv('VITE_GOOGLE_WEB_CLIENT_ID'),
         )
