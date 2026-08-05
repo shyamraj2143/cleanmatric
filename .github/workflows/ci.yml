@@ -78,7 +78,7 @@ jobs:
       - run: npm test
       - run: npm run build
         env:
-          VITE_API_BASE_URL: https://amusing-renewal-production.up.railway.app
+          VITE_USE_API_PROXY: 'true'
           VITE_GOOGLE_WEB_CLIENT_ID: 776507506876-vjrrc9m5eer82k6digta7ie2phd4l1f8.apps.googleusercontent.com
       - name: Verify stable production bundle
         run: |
@@ -86,35 +86,71 @@ jobs:
           test -f dist/assets/app.css
           grep -q '/assets/app.js' dist/index.html
 
-  frontend-container:
+  frontend-backend-integration:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Build production frontend image
-        run: docker build --tag cleanmetric-frontend:ci frontend
-      - name: Smoke test frontend, runtime config, SPA shell, and cache policy
+      - name: Build production images
         run: |
+          docker build --tag cleanmetric-backend:integration .
+          docker build --tag cleanmetric-frontend:integration frontend
+      - name: Start frontend and backend on one private network
+        run: |
+          docker network create cleanmetric-integration
           docker run --detach --rm \
-            --name cleanmetric-frontend-ci \
+            --name cleanmetric-backend-integration \
+            --network cleanmetric-integration \
+            --env PORT=8080 \
+            --env JWT_SECRET=ci-integration-secret-that-is-long-enough \
+            --env DATABASE_URL=sqlite:////tmp/integration.db \
+            --env ALLOWED_ORIGIN=http://localhost:3000 \
+            cleanmetric-backend:integration
+
+          docker run --detach --rm \
+            --name cleanmetric-frontend-integration \
+            --network cleanmetric-integration \
             --publish 3000:3000 \
             --env PORT=3000 \
-            --env VITE_API_BASE_URL=https://amusing-renewal-production.up.railway.app \
+            --env VITE_USE_API_PROXY=true \
+            --env API_PROXY_TARGET=http://cleanmetric-backend-integration:8080 \
             --env VITE_GOOGLE_WEB_CLIENT_ID=776507506876-vjrrc9m5eer82k6digta7ie2phd4l1f8.apps.googleusercontent.com \
-            cleanmetric-frontend:ci
-
-          for attempt in $(seq 1 30); do
+            cleanmetric-frontend:integration
+      - name: Verify frontend shell, backend proxy, auth, and runtime config
+        run: |
+          for attempt in $(seq 1 40); do
             if curl --fail --silent --show-error http://127.0.0.1:3000/health; then
-              curl --fail --silent --show-error http://127.0.0.1:3000/config.js | grep -q 'VITE_GOOGLE_WEB_CLIENT_ID'
-              curl --fail --silent --show-error http://127.0.0.1:3000/ | grep -q '/assets/app.js'
-              curl --fail --silent --show-error http://127.0.0.1:3000/assets/app.js >/dev/null
-              curl --silent --show-error --head http://127.0.0.1:3000/ | grep -qi 'cache-control: no-store'
-              exit 0
+              break
             fi
             sleep 2
           done
 
-          docker logs cleanmetric-frontend-ci
-          exit 1
-      - name: Stop frontend smoke-test container
+          curl --fail --silent --show-error http://127.0.0.1:3000/config.js | grep -q 'VITE_USE_API_PROXY'
+          curl --fail --silent --show-error http://127.0.0.1:3000/config.js | grep -q 'VITE_GOOGLE_WEB_CLIENT_ID'
+          curl --fail --silent --show-error http://127.0.0.1:3000/ | grep -q '/assets/app.js'
+          curl --fail --silent --show-error http://127.0.0.1:3000/assets/app.js >/dev/null
+          curl --silent --show-error --head http://127.0.0.1:3000/ | grep -qi 'cache-control: no-store'
+          curl --fail --silent --show-error http://127.0.0.1:3000/backend-health | grep -q 'cleanmetric-api'
+
+          email="integration-$(date +%s)@example.com"
+          register_response=$(curl --fail --silent --show-error \
+            --request POST http://127.0.0.1:3000/api/auth/register \
+            --header 'Content-Type: application/json' \
+            --data "{\"name\":\"Integration User\",\"email\":\"${email}\",\"password\":\"integration-password-123\"}")
+          echo "$register_response" | grep -q '"token"'
+
+          login_response=$(curl --fail --silent --show-error \
+            --request POST http://127.0.0.1:3000/api/auth/login \
+            --header 'Content-Type: application/json' \
+            --data "{\"email\":\"${email}\",\"password\":\"integration-password-123\"}")
+          echo "$login_response" | grep -q '"token"'
+      - name: Show logs after failure
+        if: failure()
+        run: |
+          docker logs cleanmetric-backend-integration || true
+          docker logs cleanmetric-frontend-integration || true
+      - name: Stop integration containers
         if: always()
-        run: docker stop cleanmetric-frontend-ci || true
+        run: |
+          docker stop cleanmetric-frontend-integration || true
+          docker stop cleanmetric-backend-integration || true
+          docker network rm cleanmetric-integration || true
