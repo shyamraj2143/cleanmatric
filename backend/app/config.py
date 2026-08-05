@@ -1,6 +1,7 @@
 import os
 import secrets
 from dataclasses import dataclass
+from pathlib import Path
 
 from dotenv import load_dotenv
 
@@ -18,6 +19,21 @@ def _positive_integer(value: str | None, default: int) -> int:
     return parsed if parsed > 0 else default
 
 
+def _persistent_secret() -> str:
+    secret_path = Path(os.getenv('JWT_SECRET_FILE', '/data/jwt_secret'))
+    try:
+        if secret_path.exists():
+            secret = secret_path.read_text(encoding='utf-8').strip()
+            if secret:
+                return secret
+        secret_path.parent.mkdir(parents=True, exist_ok=True)
+        secret = secrets.token_urlsafe(48)
+        secret_path.write_text(secret, encoding='utf-8')
+        return secret
+    except OSError:
+        return secrets.token_urlsafe(48)
+
+
 @dataclass(frozen=True)
 class Settings:
     port: int
@@ -29,10 +45,7 @@ class Settings:
 
     @classmethod
     def from_environment(cls) -> 'Settings':
-        is_production = os.getenv('NODE_ENV') == 'production'
-        jwt_secret = os.getenv('JWT_SECRET') or ('' if is_production else secrets.token_urlsafe(48))
-        if not jwt_secret:
-            raise RuntimeError('JWT_SECRET must be set when NODE_ENV is production.')
+        jwt_secret = os.getenv('JWT_SECRET') or _persistent_secret()
         database_url = os.getenv('DATABASE_URL', 'sqlite:///./metricflow.db')
 
         return cls(
