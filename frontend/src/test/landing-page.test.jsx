@@ -1,5 +1,5 @@
 import React from 'react'
-import { screen } from '@testing-library/react'
+import { screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import App from '../App'
@@ -24,7 +24,8 @@ describe('public CleanMetric website', () => {
     const user = userEvent.setup()
     renderApp(<App />, { route: '/' })
 
-    await user.click(screen.getByRole('link', { name: 'Sign in' }))
+    const navigation = screen.getByRole('navigation', { name: 'Primary navigation' })
+    await user.click(within(navigation).getByRole('link', { name: 'Sign in' }))
 
     expect(await screen.findByRole('heading', { name: 'Sign in to MetricFlow' })).toBeInTheDocument()
   })
