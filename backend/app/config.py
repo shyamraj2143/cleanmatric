@@ -76,6 +76,49 @@ def _database_score(path: Path) -> tuple[int, int, int]:
         return (0, 0, 0)
 
 
+def _sqlite_backup(source_path: Path, destination_path: Path) -> None:
+    destination_path.parent.mkdir(parents=True, exist_ok=True)
+    temporary_path = destination_path.with_suffix(f'{destination_path.suffix}.tmp')
+    temporary_path.unlink(missing_ok=True)
+    source = sqlite3.connect(source_path)
+    destination = sqlite3.connect(temporary_path)
+    try:
+        source.backup(destination)
+    finally:
+        destination.close()
+        source.close()
+    os.replace(temporary_path, destination_path)
+
+
+def _restore_latest_backup(preferred_path: Path, backup_directory: Path) -> bool:
+    for backup_name in ('metricflow-latest.db', 'metricflow-previous.db'):
+        backup_path = backup_directory / backup_name
+        if _database_score(backup_path) == (0, 0, 0):
+            continue
+        try:
+            _sqlite_backup(backup_path, preferred_path)
+            print(f'CleanMetric restored persistent database from {backup_path}.', flush=True)
+            return True
+        except (OSError, sqlite3.DatabaseError) as error:
+            print(f'CleanMetric could not restore {backup_path}: {error}', flush=True)
+    return False
+
+
+def _write_recovery_backup(source_path: Path, backup_directory: Path) -> None:
+    if _database_score(source_path) == (0, 0, 0):
+        return
+    latest_path = backup_directory / 'metricflow-latest.db'
+    previous_path = backup_directory / 'metricflow-previous.db'
+    try:
+        backup_directory.mkdir(parents=True, exist_ok=True)
+        if latest_path.exists() and _database_score(latest_path) != _database_score(source_path):
+            os.replace(latest_path, previous_path)
+        _sqlite_backup(source_path, latest_path)
+        print(f'CleanMetric recovery backup updated: {latest_path}', flush=True)
+    except (OSError, sqlite3.DatabaseError) as error:
+        print(f'CleanMetric recovery backup failed: {error}', flush=True)
+
+
 def _resolve_database_url() -> str:
     configured_url = os.getenv('DATABASE_URL', '').strip()
     volume_mount_value = os.getenv('RAILWAY_VOLUME_MOUNT_PATH', '').strip()
@@ -85,6 +128,7 @@ def _resolve_database_url() -> str:
 
     volume_mount = Path(volume_mount_value).expanduser().resolve()
     volume_mount.mkdir(parents=True, exist_ok=True)
+    backup_directory = volume_mount / 'backups'
     configured_path = _sqlite_path(configured_url) if configured_url else None
 
     preferred_path = volume_mount / 'metricflow.db'
@@ -105,7 +149,10 @@ def _resolve_database_url() -> str:
     candidates: set[Path] = {preferred_path}
     for pattern in ('*.db', '*.sqlite', '*.sqlite3'):
         try:
-            candidates.update(path.resolve() for path in volume_mount.rglob(pattern) if path.is_file())
+            for path in volume_mount.rglob(pattern):
+                if not path.is_file() or backup_directory in path.parents:
+                    continue
+                candidates.add(path.resolve())
         except OSError:
             pass
 
@@ -124,13 +171,16 @@ def _resolve_database_url() -> str:
     selected_path = max(candidates, key=_database_score)
     if _database_score(selected_path) == (0, 0, 0):
         selected_path = preferred_path
+        _restore_latest_backup(preferred_path, backup_directory)
 
     selected_path.parent.mkdir(parents=True, exist_ok=True)
+    selected_score = _database_score(selected_path)
     print(
         f'CleanMetric persistent database: {selected_path} '
-        f'(score={_database_score(selected_path)}, volume={volume_mount})',
+        f'(score={selected_score}, volume={volume_mount})',
         flush=True,
     )
+    _write_recovery_backup(selected_path, backup_directory)
     return _sqlite_url(selected_path)
 
 
